@@ -91,6 +91,11 @@ textarea.form-input{resize:none;min-height:80px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 input[type="date"]{color-scheme:dark}
+.autocomplete-wrap{position:relative}
+.autocomplete-list{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--accent);border-radius:0 0 10px 10px;z-index:50;max-height:180px;overflow-y:auto}
+.autocomplete-item{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border)}
+.autocomplete-item:last-child{border-bottom:none}
+.autocomplete-item:active{background:var(--bg)}
 input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.4)}
 </style>
 </head>
@@ -244,7 +249,7 @@ function showToast(msg, err) {
 }
 
 // ── STATE ──────────────────────────────────────────────
-var pin = '', currentUser = null, obrasData = [], reqData = [], curTab = 'mis';
+var pin = '', currentUser = null, obrasData = [], reqData = [], curTab = 'mis', materialesFrecuentes = [];
 var rqItems = []; // items in new req form
 
 // ── PIN ───────────────────────────────────────────────
@@ -284,6 +289,7 @@ async function verificarPin() {
       currentUser = {id:p.user_id, nombre:p.nombre, rol:p.rol, tipo:'perfil', permisos:p.permisos||{}};
     }
     obrasData = await db('GET','obras?order=nombre') || [];
+    try{ materialesFrecuentes = await db('GET','materiales_frecuentes?order=usos.desc,nombre.asc') || []; }catch(e){ materialesFrecuentes=[]; }
     reqData = await db('GET','requisiciones?order=created_at.desc') || [];
     mostrarMain();
   } catch(e) {
@@ -488,7 +494,10 @@ function renderItemsForm() {
       +'<span style="font-size:12px;font-weight:700;color:var(--dim)">MATERIAL '+(i+1)+'</span>'
       +'<button onclick="eliminarItem('+i+')" style="border:none;background:none;color:#EF4444;font-size:14px;cursor:pointer">🗑</button>'
       +'</div>'
-      +'<input class="form-input" placeholder="Descripción *" value="'+it.descripcion+'" oninput="rqItems['+i+'].descripcion=this.value" style="margin-bottom:8px">'
+      +'<div class="autocomplete-wrap" style="margin-bottom:8px">'
+      +'<input class="form-input" placeholder="Descripción del material *" value="'+it.descripcion+'" id="mat-input-'+i+'" oninput="rqItems['+i+'].descripcion=this.value;filtrarMat('+i+')" autocomplete="off">'
+      +'<div class="autocomplete-list" id="mat-list-'+i+'" style="display:none"></div>'
+      +'</div>'
       +'<input class="form-input" placeholder="Especificaciones (opcional)" value="'+it.especificaciones+'" oninput="rqItems['+i+'].especificaciones=this.value" style="margin-bottom:8px">'
       +'<div style="display:flex;gap:8px">'
       +'<input class="form-input" type="number" placeholder="Cant." value="'+it.cantidad+'" oninput="rqItems['+i+'].cantidad=this.value" style="flex:1">'
@@ -549,6 +558,7 @@ async function saveRequisicion() {
       +'📦 Materiales:\n'
       +validos.map(function(it,i){ return (i+1)+'. '+it.descripcion.trim()+' - '+it.cantidad+' '+(it.unidad||'pza'); }).join('\n');
     var waUrl = 'https://wa.me/?text='+encodeURIComponent(msg);
+    await guardarMaterialesFrecuentes(validos);
     showToast('✅ Requisición enviada');
     closeSheet('nueva');
     await loadData();
@@ -600,6 +610,55 @@ async function saveCotizacion() {
 }
 
 // ── AUTORIZAR / RECHAZAR ───────────────────────────────
+
+
+// ── MATERIALES FRECUENTES ─────────────────────────────
+function filtrarMat(i) {
+  var val = document.getElementById('mat-input-'+i).value.trim().toLowerCase();
+  var lista = document.getElementById('mat-list-'+i);
+  if(!val || val.length < 2) { lista.style.display='none'; return; }
+  var filtrados = materialesFrecuentes.filter(function(m){
+    return m.nombre.toLowerCase().includes(val);
+  }).slice(0,8);
+  if(!filtrados.length) { lista.style.display='none'; return; }
+  lista.innerHTML = filtrados.map(function(m){
+    return '<div class="autocomplete-item" onclick="seleccionarMat('+i+',\''+m.nombre.replace(/'/g,'')+'\')">'+m.nombre+'<span style="float:right;font-size:10px;color:var(--dim)">'+m.usos+'x</span></div>';
+  }).join('');
+  lista.style.display = 'block';
+}
+
+function seleccionarMat(i, nombre) {
+  rqItems[i].descripcion = nombre;
+  var inp = document.getElementById('mat-input-'+i);
+  if(inp) inp.value = nombre;
+  var lista = document.getElementById('mat-list-'+i);
+  if(lista) lista.style.display = 'none';
+}
+
+async function guardarMaterialesFrecuentes(items) {
+  for(var i=0; i<items.length; i++) {
+    var nom = items[i].descripcion.trim();
+    if(!nom) continue;
+    var existe = materialesFrecuentes.find(function(m){ return m.nombre.toLowerCase()===nom.toLowerCase(); });
+    try {
+      if(existe) {
+        await db('PATCH','materiales_frecuentes?id=eq.'+existe.id,{usos:(existe.usos||0)+1});
+      } else {
+        await db('POST','materiales_frecuentes',{nombre:nom, usos:1});
+      }
+    } catch(e) {}
+  }
+  // Reload cache
+  try{ materialesFrecuentes = await db('GET','materiales_frecuentes?order=usos.desc,nombre.asc') || []; }catch(e){}
+}
+
+// Close autocomplete when clicking outside
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.autocomplete-wrap')){
+    document.querySelectorAll('.autocomplete-list').forEach(function(l){ l.style.display='none'; });
+  }
+});
+
 
 async function eliminarReq(reqId) {
   if(!confirm('¿Eliminar esta requisición? Esta acción no se puede deshacer.')) return;
