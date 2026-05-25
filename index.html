@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0A1628">
+<title>Requisiciones — Procepal</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0A1628;--surface:#112240;--border:#1E3A5F;
+  --accent:#5BC4C0;--text:#E8F4F8;--muted:#8BBFD4;--dim:#5A8FA8;
+  --success:#5BC4C0;--danger:#EF4444;--warning:#F0A500;
+  color-scheme:dark;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;overflow:hidden}
+#app{height:100vh;height:100dvh;display:flex;flex-direction:column}
+
+/* LOGIN */
+#login-view{display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px;height:100%}
+.pin-display{display:flex;justify-content:center;gap:12px;margin:24px 0 8px}
+.pin-dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);background:transparent;transition:all .2s}
+.pin-dot.filled{background:var(--accent);border-color:var(--accent)}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:280px;margin:0 auto}
+.num-btn{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;font-size:22px;font-weight:700;color:var(--text);cursor:pointer;font-family:'Barlow',sans-serif;transition:all .1s}
+.num-btn:active{background:var(--accent);color:#0A1628;transform:scale(.95)}
+.num-btn.del{font-size:18px;color:var(--dim)}
+.num-btn.empty{background:transparent;border:none;cursor:default}
+
+/* MAIN */
+#main-view{display:none;flex-direction:column;height:100%}
+.top-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.top-bar-title{font-size:16px;font-weight:800;color:var(--accent)}
+.top-bar-user{font-size:12px;color:var(--dim)}
+.content{flex:1;overflow-y:auto;padding:16px}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+.tab-btn{flex:1;padding:12px 8px;font-size:12px;font-weight:700;color:var(--dim);background:none;border:none;cursor:pointer;font-family:'Barlow',sans-serif;border-bottom:2px solid transparent;transition:all .2s}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+.card-label{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.item-sub{font-size:12px;color:var(--dim);margin-top:3px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
+
+/* FORM */
+.form-group{margin-bottom:14px}
+.form-label{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
+.form-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--text);font-family:'Barlow',sans-serif;outline:none}
+.form-input:focus{border-color:var(--accent)}
+textarea.form-input{resize:none;min-height:80px}
+
+/* BUTTONS */
+.btn-primary{width:100%;background:var(--accent);border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:700;color:#0A1628;cursor:pointer;font-family:'Barlow',sans-serif;margin-bottom:8px}
+.btn-secondary{width:100%;background:none;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;font-family:'Barlow',sans-serif;margin-bottom:8px}
+.btn-danger{width:100%;background:#EF444422;border:1px solid #EF444455;border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:#EF4444;cursor:pointer;font-family:'Barlow',sans-serif}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--accent);cursor:pointer;font-family:'Barlow',sans-serif;font-weight:700}
+
+/* SHEET */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:flex-end}
+.sheet-overlay.open{display:flex}
+.sheet{background:var(--bg);border-radius:20px 20px 0 0;padding:16px;width:100%;max-height:90vh;overflow-y:auto}
+.sheet-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
+.sheet-title{font-size:18px;font-weight:800;margin-bottom:16px}
+
+/* ITEMS LIST */
+.item-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.item-row:last-child{border-bottom:none}
+
+/* STATUS COLORS */
+.s-pendiente{background:#F0A50022;color:#F0A500}
+.s-cotizada{background:#3B9EBF22;color:#3B9EBF}
+.s-autorizada{background:#5BC4C022;color:#5BC4C0}
+.s-rechazada{background:#EF444422;color:#EF4444}
+.s-comprada{background:#A78BFA22;color:#A78BFA}
+.s-recibida{background:#5BC4C022;color:#5BC4C0}
+
+.empty{text-align:center;padding:48px 16px;color:var(--dim)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1E3A5F;color:var(--text);padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:200;border:1px solid var(--border)}
+.toast.show{opacity:1}
+.toast.error{background:#EF444422;border-color:#EF4444;color:#EF4444}
+
+.loading{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+input[type="date"]{color-scheme:dark}
+input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.4)}
+</style>
+</head>
+<body>
+<div id="app">
+
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div style="font-size:13px;color:var(--dim)">Cargando...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-view">
+  <div style="text-align:center;margin-bottom:32px">
+    <div style="font-size:40px;margin-bottom:8px">📋</div>
+    <div style="font-size:24px;font-weight:800;color:var(--accent);letter-spacing:2px">PROCEPAL</div>
+    <div style="font-size:12px;color:var(--dim);margin-top:4px">Requisiciones de obra</div>
+  </div>
+  <div class="pin-display">
+    <div class="pin-dot" id="dot-0"></div>
+    <div class="pin-dot" id="dot-1"></div>
+    <div class="pin-dot" id="dot-2"></div>
+    <div class="pin-dot" id="dot-3"></div>
+  </div>
+  <div style="font-size:13px;color:var(--dim);margin-bottom:20px;text-align:center">Ingresa tu PIN</div>
+  <div class="numpad">
+    <button class="num-btn" onclick="pinPress('1')">1</button>
+    <button class="num-btn" onclick="pinPress('2')">2</button>
+    <button class="num-btn" onclick="pinPress('3')">3</button>
+    <button class="num-btn" onclick="pinPress('4')">4</button>
+    <button class="num-btn" onclick="pinPress('5')">5</button>
+    <button class="num-btn" onclick="pinPress('6')">6</button>
+    <button class="num-btn" onclick="pinPress('7')">7</button>
+    <button class="num-btn" onclick="pinPress('8')">8</button>
+    <button class="num-btn" onclick="pinPress('9')">9</button>
+    <button class="num-btn empty"></button>
+    <button class="num-btn" onclick="pinPress('0')">0</button>
+    <button class="num-btn del" onclick="pinDel()">⌫</button>
+  </div>
+  <div id="login-error" style="font-size:12px;color:var(--danger);margin-top:12px;text-align:center;min-height:18px"></div>
+</div>
+
+<!-- MAIN -->
+<div id="main-view">
+  <div class="top-bar">
+    <div>
+      <div class="top-bar-title">Requisiciones</div>
+      <div class="top-bar-user" id="top-user">—</div>
+    </div>
+    <button onclick="logout()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--dim);cursor:pointer;font-family:Barlow,sans-serif">Salir</button>
+  </div>
+  <div class="tabs" id="tabs-bar">
+    <button class="tab-btn active" onclick="setTab('mis')" id="tab-mis">📋 Mis requisiciones</button>
+    <button class="tab-btn" onclick="setTab('todas')" id="tab-todas" style="display:none">📦 Todas</button>
+    <button class="tab-btn" onclick="setTab('autorizar')" id="tab-autorizar" style="display:none">✅ Autorizar</button>
+  </div>
+  <div class="content" id="content"></div>
+</div>
+
+</div>
+
+<!-- SHEET: Nueva requisición -->
+<div class="sheet-overlay" id="sheet-nueva">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Nueva Requisición</div>
+    <div class="form-group">
+      <label class="form-label">Obra *</label>
+      <select class="form-input" id="rq-obra"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Urgencia</label>
+      <select class="form-input" id="rq-urgencia">
+        <option value="normal">Normal</option>
+        <option value="urgente">🔴 Urgente</option>
+        <option value="muy_urgente">🚨 Muy urgente</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fecha requerida</label>
+      <input class="form-input" id="rq-fecha" type="date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notas generales</label>
+      <textarea class="form-input" id="rq-notas" placeholder="Instrucciones especiales, lugar de entrega..."></textarea>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="card-label" style="margin:0">MATERIALES SOLICITADOS</div>
+      <button class="btn-sm" onclick="agregarItemForm()">+ Agregar</button>
+    </div>
+    <div id="rq-items-list" style="margin-bottom:16px"></div>
+    <button class="btn-primary" id="rq-save-btn" onclick="saveRequisicion()">Enviar requisición</button>
+    <button class="btn-secondary" onclick="closeSheet('nueva')">Cancelar</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- SHEET: Detalle requisición -->
+<div class="sheet-overlay" id="sheet-detalle">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div id="detalle-content"></div>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- SHEET: Cotizar -->
+<div class="sheet-overlay" id="sheet-cotizar">
+  <div class="sheet" style="max-height:90vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Cotización</div>
+    <input type="hidden" id="cot-req-id">
+    <div class="form-group">
+      <label class="form-label">Proveedor</label>
+      <input class="form-input" id="cot-proveedor" type="text" placeholder="Nombre del proveedor">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Monto total ($)</label>
+      <input class="form-input" id="cot-monto" type="number" placeholder="0.00">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tiempo de entrega</label>
+      <input class="form-input" id="cot-entrega" type="text" placeholder="Ej. 2 días hábiles">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notas</label>
+      <textarea class="form-input" id="cot-notas" placeholder="Condiciones, descuentos..."></textarea>
+    </div>
+    <button class="btn-primary" id="cot-save-btn" onclick="saveCotizacion()">Guardar cotización</button>
+    <button class="btn-secondary" onclick="closeSheet('cotizar')">Cancelar</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://pviiuaukqvrdyttwulcw.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2aWl1YXVrcXZyZHl0dHd1bGN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0OTU0MzMsImV4cCI6MjA5NTA3MTQzM30.mKJ2z17zBkz0zc18itgEnJAk8ZuQ6nT3PlAvXyYRip8';
+
+async function db(method, path, body) {
+  const h = {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
+  const res = await fetch(SUPABASE_URL+'/rest/v1/'+path, {method, headers:h, body:body?JSON.stringify(body):undefined});
+  const text = await res.text();
+  if(!res.ok) throw new Error(text);
+  return text ? JSON.parse(text) : null;
+}
+
+function showToast(msg, err) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show'+(err?' error':'');
+  setTimeout(function(){ t.className='toast'; }, 2800);
+}
+
+// ── STATE ──────────────────────────────────────────────
+var pin = '', currentUser = null, obrasData = [], reqData = [], curTab = 'mis';
+var rqItems = []; // items in new req form
+
+// ── PIN ───────────────────────────────────────────────
+function pinPress(d) {
+  if(pin.length >= 4) return;
+  pin += d;
+  updateDots();
+  if(pin.length === 4) setTimeout(verificarPin, 150);
+}
+function pinDel() {
+  pin = pin.slice(0,-1);
+  updateDots();
+  document.getElementById('login-error').textContent = '';
+}
+function updateDots() {
+  for(var i=0;i<4;i++)
+    document.getElementById('dot-'+i).className = 'pin-dot'+(i<pin.length?' filled':'');
+}
+
+async function verificarPin() {
+  try {
+    // Check against perfiles using pin_checador field on trabajadores... 
+    // Actually use perfiles with a pin field — we'll use pin_checador from trabajadores
+    // For management users (compras, director) we need a separate pin
+    // Solution: store pin in perfiles table
+    var perfiles = await db('GET','perfiles?pin_app=eq.'+pin);
+    if(!perfiles || !perfiles.length) {
+      // Try trabajadores for field workers
+      var trabs = await db('GET','trabajadores?pin_checador=eq.'+pin+'&activo=eq.true');
+      if(!trabs || !trabs.length) {
+        document.getElementById('login-error').textContent = 'PIN incorrecto';
+        pin=''; updateDots(); return;
+      }
+      currentUser = {id:trabs[0].id, nombre:trabs[0].nombre, rol:'campo', tipo:'trabajador', obra_id:trabs[0].obra_id, todos_proyectos:trabs[0].todos_proyectos};
+    } else {
+      var p = perfiles[0];
+      currentUser = {id:p.user_id, nombre:p.nombre, rol:p.rol, tipo:'perfil', permisos:p.permisos||{}};
+    }
+    obrasData = await db('GET','obras?order=nombre') || [];
+    reqData = await db('GET','requisiciones?order=created_at.desc') || [];
+    mostrarMain();
+  } catch(e) {
+    document.getElementById('login-error').textContent = 'Error de conexión';
+    pin=''; updateDots();
+  }
+}
+
+function logout() {
+  currentUser=null; pin=''; updateDots();
+  document.getElementById('main-view').style.display='none';
+  document.getElementById('login-view').style.display='flex';
+}
+
+// ── MAIN ──────────────────────────────────────────────
+function mostrarMain() {
+  document.getElementById('login-view').style.display='none';
+  document.getElementById('main-view').style.display='flex';
+  document.getElementById('top-user').textContent = currentUser.nombre + ' · ' + rolLabel(currentUser.rol);
+  // Show tabs based on role
+  var isCompras = currentUser.rol==='compras' || (currentUser.permisos&&currentUser.permisos.materiales);
+  var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
+  document.getElementById('tab-todas').style.display = (isCompras||isDir)?'':'none';
+  document.getElementById('tab-autorizar').style.display = isDir?'':'none';
+  setTab('mis');
+}
+
+function rolLabel(rol) {
+  var labels = {admin:'Admin',director:'Director',campo:'Campo',compras:'Compras',taller:'Taller',rrhh:'RRHH'};
+  return labels[rol]||rol;
+}
+
+function setTab(tab) {
+  curTab = tab;
+  ['mis','todas','autorizar'].forEach(function(t){
+    var btn = document.getElementById('tab-'+t);
+    if(btn) btn.className = 'tab-btn'+(t===tab?' active':'');
+  });
+  renderContent();
+}
+
+async function loadData() {
+  reqData = await db('GET','requisiciones?order=created_at.desc') || [];
+}
+
+// ── RENDER ─────────────────────────────────────────────
+function renderContent() {
+  var el = document.getElementById('content');
+  var reqs = [];
+
+  if(curTab==='mis') {
+    // Field worker sees their own reqs; management sees all
+    if(currentUser.tipo==='trabajador') {
+      reqs = reqData.filter(function(r){ return r.solicitante_id===currentUser.id; });
+    } else {
+      reqs = reqData.filter(function(r){ return r.solicitante_id===currentUser.id; });
+    }
+    var btnNueva = '<button class="btn-primary" onclick="abrirNueva()" style="margin-bottom:16px">+ Nueva requisición</button>';
+    el.innerHTML = btnNueva + renderReqs(reqs, 'mis');
+  } else if(curTab==='todas') {
+    reqs = reqData;
+    el.innerHTML = renderReqs(reqs, 'todas');
+  } else if(curTab==='autorizar') {
+    reqs = reqData.filter(function(r){ return r.estado==='cotizada'; });
+    el.innerHTML = '<div style="font-size:13px;color:var(--dim);margin-bottom:16px">Requisiciones cotizadas pendientes de autorización</div>' + renderReqs(reqs, 'autorizar');
+  }
+}
+
+function renderReqs(reqs, mode) {
+  if(!reqs.length) {
+    return '<div class="empty"><div class="empty-icon">📋</div><div style="font-weight:700;margin-bottom:6px">Sin requisiciones</div><div class="item-sub">'+
+      (mode==='mis'?'Toca "+ Nueva requisición" para solicitar materiales':'No hay requisiciones en este estado')+
+    '</div></div>';
+  }
+  var urgColors = {urgente:'#F0A500',muy_urgente:'#EF4444'};
+  return reqs.map(function(r){
+    var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
+    var urg = r.urgencia && r.urgencia!=='normal' ? '<span style="color:'+urgColors[r.urgencia]+';font-size:11px;font-weight:700"> '+( r.urgencia==='urgente'?'🔴 URGENTE':'🚨 MUY URGENTE')+'</span>' : '';
+    return '<div class="card" onclick="verDetalle(\''+r.id+'\')" style="cursor:pointer">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
+      +'<div><div style="font-size:14px;font-weight:700">REQ-'+r.folio+'</div>'
+      +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
+      +'<div class="item-sub">'+r.solicitante_nombre+(r.fecha_requerida?' · Req: '+fmtDate(r.fecha_requerida):'')+'</div>'
+      +'</div>'
+      +'<div style="text-align:right"><span class="badge s-'+r.estado+'">'+r.estado+'</span>'+urg+'</div>'
+      +'</div>'
+      +(r.notas?'<div style="font-size:12px;color:var(--dim);margin-top:4px">'+r.notas+'</div>':'')
+      +'</div>';
+  }).join('');
+}
+
+function fmtDate(d) {
+  if(!d) return '—';
+  var parts = d.split('-');
+  var meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return parseInt(parts[2])+' '+meses[parseInt(parts[1])];
+}
+
+// ── DETALLE ────────────────────────────────────────────
+async function verDetalle(reqId) {
+  var r = reqData.find(function(x){ return x.id===reqId; });
+  if(!r) return;
+  var items = [];
+  try { items = await db('GET','requisicion_items?requisicion_id=eq.'+reqId) || []; } catch(e){}
+  var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
+  var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
+  var isCompras = currentUser.rol==='compras'||(currentUser.permisos&&currentUser.permisos.materiales);
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
+    +'<div><div style="font-size:20px;font-weight:800">REQ-'+r.folio+'</div>'
+    +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
+    +'<div class="item-sub">'+r.solicitante_nombre+' · '+fmtDate(r.created_at)+'</div></div>'
+    +'<span class="badge s-'+r.estado+'">'+r.estado+'</span>'
+    +'</div>';
+
+  if(r.urgencia && r.urgencia!=='normal')
+    html += '<div style="background:#EF444415;border:1px solid #EF444433;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;font-weight:700;color:#EF4444">'+(r.urgencia==='urgente'?'🔴 URGENTE':'🚨 MUY URGENTE')+'</div>';
+
+  if(r.fecha_requerida)
+    html += '<div class="item-sub" style="margin-bottom:12px">📅 Requerido para: <b>'+fmtDate(r.fecha_requerida)+'</b></div>';
+
+  if(r.notas)
+    html += '<div class="card" style="margin-bottom:12px"><div class="card-label">NOTAS</div><div style="font-size:13px">'+r.notas+'</div></div>';
+
+  // Items
+  html += '<div class="card-label">MATERIALES SOLICITADOS</div>';
+  if(!items.length) html += '<div class="item-sub" style="margin-bottom:12px">Sin items</div>';
+  else {
+    html += '<div style="margin-bottom:12px">';
+    items.forEach(function(it){
+      html += '<div class="item-row"><div style="flex:1"><div style="font-size:13px;font-weight:700">'+it.descripcion+'</div>'
+        +(it.especificaciones?'<div class="item-sub">'+it.especificaciones+'</div>':'')+'</div>'
+        +'<div style="text-align:right;font-size:13px;font-weight:700">'+it.cantidad+' '+it.unidad+'</div></div>';
+    });
+    html += '</div>';
+  }
+
+  // Cotización info
+  if(r.proveedor) {
+    html += '<div class="card" style="margin-bottom:12px">'
+      +'<div class="card-label">COTIZACIÓN</div>'
+      +'<div style="font-size:15px;font-weight:700">'+r.proveedor+'</div>'
+      +'<div style="font-size:22px;font-weight:800;color:var(--accent);margin:4px 0">$'+parseFloat(r.monto_cotizado||0).toLocaleString()+'</div>'
+      +(r.tiempo_entrega?'<div class="item-sub">⏱ '+r.tiempo_entrega+'</div>':'')
+      +(r.notas_cotizacion?'<div class="item-sub">'+r.notas_cotizacion+'</div>':'')
+      +'</div>';
+  }
+
+  // Actions
+  if(r.estado==='pendiente' && isCompras) {
+    html += '<button class="btn-primary" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\')">💰 Cotizar</button>';
+  }
+  if(r.estado==='cotizada' && isDir) {
+    html += '<button class="btn-primary" onclick="autorizarReq(\''+reqId+'\')">✅ Autorizar compra</button>';
+    html += '<button class="btn-danger" onclick="rechazarReq(\''+reqId+'\')">❌ Rechazar</button>';
+  }
+  if(r.estado==='autorizada' && isCompras) {
+    html += '<button class="btn-primary" onclick="marcarComprada(\''+reqId+'\')">🛒 Marcar como comprada</button>';
+  }
+  if(r.estado==='comprada' && (currentUser.tipo==='trabajador'||r.solicitante_id===currentUser.id)) {
+    html += '<button class="btn-primary" onclick="confirmarRecepcion(\''+reqId+'\')">✅ Confirmar recepción</button>';
+  }
+  html += '<button class="btn-secondary" onclick="closeSheet(\'detalle\')">Cerrar</button>';
+
+  document.getElementById('detalle-content').innerHTML = html;
+  openSheet('detalle');
+}
+
+// ── NUEVA REQUISICIÓN ──────────────────────────────────
+function abrirNueva() {
+  rqItems = [];
+  // Populate obras
+  var misObras = currentUser.tipo==='trabajador'
+    ? (currentUser.todos_proyectos ? obrasData : obrasData.filter(function(o){ return o.id===currentUser.obra_id; }))
+    : obrasData;
+  var sel = document.getElementById('rq-obra');
+  sel.innerHTML = misObras.map(function(o){ return '<option value="'+o.id+'">'+o.nombre+'</option>'; }).join('');
+  document.getElementById('rq-urgencia').value='normal';
+  document.getElementById('rq-fecha').value='';
+  document.getElementById('rq-notas').value='';
+  renderItemsForm();
+  openSheet('nueva');
+}
+
+function agregarItemForm() {
+  rqItems.push({descripcion:'',especificaciones:'',cantidad:1,unidad:'pza'});
+  renderItemsForm();
+}
+
+function renderItemsForm() {
+  var el = document.getElementById('rq-items-list');
+  if(!rqItems.length) {
+    el.innerHTML = '<div class="item-sub" style="margin-bottom:8px">Toca "+ Agregar" para añadir materiales</div>';
+    return;
+  }
+  el.innerHTML = rqItems.map(function(it,i){
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:8px">'
+      +'<span style="font-size:12px;font-weight:700;color:var(--dim)">MATERIAL '+(i+1)+'</span>'
+      +'<button onclick="eliminarItem('+i+')" style="border:none;background:none;color:#EF4444;font-size:14px;cursor:pointer">🗑</button>'
+      +'</div>'
+      +'<input class="form-input" placeholder="Descripción *" value="'+it.descripcion+'" oninput="rqItems['+i+'].descripcion=this.value" style="margin-bottom:8px">'
+      +'<input class="form-input" placeholder="Especificaciones (opcional)" value="'+it.especificaciones+'" oninput="rqItems['+i+'].especificaciones=this.value" style="margin-bottom:8px">'
+      +'<div style="display:flex;gap:8px">'
+      +'<input class="form-input" type="number" placeholder="Cant." value="'+it.cantidad+'" oninput="rqItems['+i+'].cantidad=this.value" style="flex:1">'
+      +'<select class="form-input" onchange="rqItems['+i+'].unidad=this.value" style="flex:1">'
+      +'<option '+(it.unidad==='pza'?'selected':'')+'>pza</option>'
+      +'<option '+(it.unidad==='m'?'selected':'')+'>m</option>'
+      +'<option '+(it.unidad==='m2'?'selected':'')+'>m2</option>'
+      +'<option '+(it.unidad==='kg'?'selected':'')+'>kg</option>'
+      +'<option '+(it.unidad==='lt'?'selected':'')+'>lt</option>'
+      +'<option '+(it.unidad==='caja'?'selected':'')+'>caja</option>'
+      +'<option '+(it.unidad==='rollo'?'selected':'')+'>rollo</option>'
+      +'<option '+(it.unidad==='juego'?'selected':'')+'>juego</option>'
+      +'</select>'
+      +'</div></div>';
+  }).join('');
+}
+
+function eliminarItem(i) {
+  rqItems.splice(i,1);
+  renderItemsForm();
+}
+
+async function saveRequisicion() {
+  if(!rqItems.length) { showToast('Agrega al menos un material',true); return; }
+  var validos = rqItems.filter(function(it){ return it.descripcion.trim(); });
+  if(!validos.length) { showToast('Escribe la descripción del material',true); return; }
+  var btn = document.getElementById('rq-save-btn');
+  btn.textContent='Enviando...'; btn.disabled=true;
+  try {
+    var folio = Math.floor(100000+Math.random()*900000);
+    var payload = {
+      folio: folio,
+      obra_id: document.getElementById('rq-obra').value,
+      solicitante_id: currentUser.id,
+      solicitante_nombre: currentUser.nombre,
+      urgencia: document.getElementById('rq-urgencia').value,
+      fecha_requerida: document.getElementById('rq-fecha').value||null,
+      notas: document.getElementById('rq-notas').value.trim(),
+      estado: 'pendiente'
+    };
+    var rows = await db('POST','requisiciones',payload);
+    var reqId = rows[0].id;
+    for(var i=0;i<validos.length;i++){
+      var it = validos[i];
+      await db('POST','requisicion_items',{
+        requisicion_id:reqId,
+        descripcion:it.descripcion.trim(),
+        especificaciones:it.especificaciones.trim(),
+        cantidad:parseFloat(it.cantidad)||1,
+        unidad:it.unidad||'pza'
+      });
+    }
+    // WhatsApp notification
+    var obra = obrasData.find(function(o){ return o.id===payload.obra_id; });
+    var msg = '📋 *Nueva Requisición REQ-'+folio+'*\n'
+      +'🏗 Obra: '+(obra?obra.nombre:'—')+'\n'
+      +'👤 Solicitante: '+currentUser.nombre+'\n'
+      +(payload.urgencia!=='normal'?'🔴 *'+payload.urgencia.toUpperCase()+'*\n':'')
+      +'📦 Materiales:\n'
+      +validos.map(function(it,i){ return (i+1)+'. '+it.descripcion+' - '+it.cantidad+' '+it.unidad; }).join('\n');
+    var waUrl = 'https://wa.me/?text='+encodeURIComponent(msg);
+    showToast('✅ Requisición enviada');
+    closeSheet('nueva');
+    await loadData();
+    renderContent();
+    setTimeout(function(){ window.open(waUrl,'_blank'); }, 1000);
+  } catch(e){ showToast('Error: '+e.message,true); }
+  btn.textContent='Enviar requisición'; btn.disabled=false;
+}
+
+// ── COTIZAR ────────────────────────────────────────────
+function abrirCotizar(reqId) {
+  document.getElementById('cot-req-id').value=reqId;
+  document.getElementById('cot-proveedor').value='';
+  document.getElementById('cot-monto').value='';
+  document.getElementById('cot-entrega').value='';
+  document.getElementById('cot-notas').value='';
+  openSheet('cotizar');
+}
+
+async function saveCotizacion() {
+  var reqId = document.getElementById('cot-req-id').value;
+  var monto = parseFloat(document.getElementById('cot-monto').value)||0;
+  var btn = document.getElementById('cot-save-btn');
+  btn.textContent='Guardando...'; btn.disabled=true;
+  try {
+    await db('PATCH','requisiciones?id=eq.'+reqId,{
+      estado:'cotizada',
+      proveedor:document.getElementById('cot-proveedor').value.trim(),
+      monto_cotizado:monto,
+      tiempo_entrega:document.getElementById('cot-entrega').value.trim(),
+      notas_cotizacion:document.getElementById('cot-notas').value.trim()
+    });
+    // WhatsApp to director
+    var r = reqData.find(function(x){ return x.id===reqId; });
+    var obra = obrasData.find(function(o){ return o.id===(r&&r.obra_id); });
+    var msg = '💰 *Cotización lista - REQ-'+(r?r.folio:'')+'*\n'
+      +'🏗 '+( obra?obra.nombre:'—')+'\n'
+      +'🏪 Proveedor: '+document.getElementById('cot-proveedor').value+'\n'
+      +'💵 Monto: $'+monto.toLocaleString()+'\n'
+      +'⏱ Entrega: '+document.getElementById('cot-entrega').value+'\n'
+      +'*Pendiente de autorización*';
+    showToast('✅ Cotización guardada');
+    closeSheet('cotizar');
+    await loadData();
+    renderContent();
+    setTimeout(function(){ window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); },800);
+  } catch(e){ showToast('Error',true); }
+  btn.textContent='Guardar cotización'; btn.disabled=false;
+}
+
+// ── AUTORIZAR / RECHAZAR ───────────────────────────────
+async function autorizarReq(reqId) {
+  if(!confirm('¿Autorizar esta compra?')) return;
+  try {
+    await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'autorizada'});
+    showToast('✅ Compra autorizada');
+    closeSheet('detalle');
+    await loadData(); renderContent();
+  } catch(e){ showToast('Error',true); }
+}
+
+async function rechazarReq(reqId) {
+  if(!confirm('¿Rechazar esta requisición?')) return;
+  try {
+    await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'rechazada'});
+    showToast('Requisición rechazada');
+    closeSheet('detalle');
+    await loadData(); renderContent();
+  } catch(e){ showToast('Error',true); }
+}
+
+async function marcarComprada(reqId) {
+  if(!confirm('¿Marcar como comprada?')) return;
+  try {
+    await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'comprada'});
+    showToast('🛒 Marcada como comprada');
+    closeSheet('detalle');
+    await loadData(); renderContent();
+  } catch(e){ showToast('Error',true); }
+}
+
+async function confirmarRecepcion(reqId) {
+  if(!confirm('¿Confirmar que recibiste los materiales?')) return;
+  try {
+    await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'recibida'});
+    showToast('✅ Recepción confirmada');
+    closeSheet('detalle');
+    await loadData(); renderContent();
+  } catch(e){ showToast('Error',true); }
+}
+
+// ── SHEETS ────────────────────────────────────────────
+function openSheet(id) { document.getElementById('sheet-'+id).classList.add('open'); }
+function closeSheet(id) { document.getElementById('sheet-'+id).classList.remove('open'); }
+
+// ── INIT ──────────────────────────────────────────────
+document.getElementById('loading').style.display='none';
+document.getElementById('login-view').style.display='flex';
+</script>
+</body>
+</html>
