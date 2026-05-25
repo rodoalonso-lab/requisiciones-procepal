@@ -446,7 +446,10 @@ async function verDetalle(reqId) {
   if(r.estado==='comprada' && (currentUser.tipo==='trabajador'||r.solicitante_id===currentUser.id)) {
     html += '<button class="btn-primary" onclick="confirmarRecepcion(\''+reqId+'\')">✅ Confirmar recepción</button>';
   }
-  html += '<button class="btn-secondary" onclick="closeSheet(\'detalle\')">Cerrar</button>';
+  // Show delete button for admin or own pending requisition
+  var canDelete = currentUser.rol==='admin'||currentUser.rol==='director'||(r.solicitante_id===currentUser.id&&r.estado==='pendiente');
+  if(canDelete) html += '<button class="btn-danger" onclick="eliminarReq(\''+reqId+'\')">🗑 Eliminar requisición</button>';
+  html += '<button class="btn-secondary" onclick="closeSheet(\'detalle\')" style="margin-top:8px">Cerrar</button>';
 
   document.getElementById('detalle-content').innerHTML = html;
   openSheet('detalle');
@@ -597,6 +600,19 @@ async function saveCotizacion() {
 }
 
 // ── AUTORIZAR / RECHAZAR ───────────────────────────────
+
+async function eliminarReq(reqId) {
+  if(!confirm('¿Eliminar esta requisición? Esta acción no se puede deshacer.')) return;
+  try {
+    await db('DELETE','requisicion_items?requisicion_id=eq.'+reqId);
+    await db('DELETE','requisiciones?id=eq.'+reqId);
+    showToast('🗑 Requisición eliminada');
+    closeSheet('detalle');
+    await loadData();
+    renderContent();
+  } catch(e){ showToast('Error al eliminar',true); }
+}
+
 async function autorizarReq(reqId) {
   if(!confirm('¿Autorizar esta compra?')) return;
   try {
