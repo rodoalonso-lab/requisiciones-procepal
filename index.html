@@ -202,17 +202,20 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.
 
 <!-- SHEET: Cotizar -->
 <div class="sheet-overlay" id="sheet-cotizar">
-  <div class="sheet" style="max-height:90vh;overflow-y:auto">
+  <div class="sheet" style="max-height:92vh;overflow-y:auto">
     <div class="sheet-handle"></div>
     <div class="sheet-title">Cotización</div>
     <input type="hidden" id="cot-req-id">
+    <input type="hidden" id="cot-monto-hidden" value="0">
     <div class="form-group">
-      <label class="form-label">Proveedor</label>
+      <label class="form-label">Proveedor *</label>
       <input class="form-input" id="cot-proveedor" type="text" placeholder="Nombre del proveedor">
     </div>
-    <div class="form-group">
-      <label class="form-label">Monto total ($)</label>
-      <input class="form-input" id="cot-monto" type="number" placeholder="0.00">
+    <div class="card-label" style="margin-bottom:10px">PRECIOS POR MATERIAL</div>
+    <div id="cot-items-wrap" style="margin-bottom:12px"></div>
+    <div class="card" style="margin-bottom:16px;text-align:center">
+      <div class="card-label">TOTAL COTIZACIÓN</div>
+      <div id="cot-total-display" style="font-size:28px;font-weight:800;color:var(--accent)">$0</div>
     </div>
     <div class="form-group">
       <label class="form-label">Tiempo de entrega</label>
@@ -569,18 +572,41 @@ async function saveRequisicion() {
 }
 
 // ── COTIZAR ────────────────────────────────────────────
-function abrirCotizar(reqId) {
+async function abrirCotizar(reqId) {
   document.getElementById('cot-req-id').value=reqId;
   document.getElementById('cot-proveedor').value='';
-  document.getElementById('cot-monto').value='';
   document.getElementById('cot-entrega').value='';
   document.getElementById('cot-notas').value='';
+  document.getElementById('cot-total-display').textContent='$0';
+  // Load items
+  var items = [];
+  try{ items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; }catch(e){}
+  var itemsHtml = '';
+  if(items.length) {
+    itemsHtml = items.map(function(it,i){
+      var nom = it.nombre_material||it.material||it.descripcion||'—';
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+        +'<div><div style="font-size:13px;font-weight:700">'+nom+'</div>'
+        +'<div style="font-size:11px;color:var(--dim)">'+it.cantidad+' '+(it.unidad||'pza')+'</div></div>'
+        +'</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+        +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">PRECIO UNIT. ($)</div>'
+        +'<input class="form-input cot-precio-unit" type="number" placeholder="0.00" data-idx="'+i+'" data-cant="'+it.cantidad+'" oninput="calcCotTotal()" style="padding:8px 10px"></div>'
+        +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">SUBTOTAL</div>'
+        +'<div id="cot-sub-'+i+'" style="font-size:14px;font-weight:800;color:var(--accent);padding:10px 0">$0</div></div>'
+        +'</div></div>';
+    }).join('');
+  } else {
+    itemsHtml = '<div class="item-sub" style="margin-bottom:12px">Sin materiales registrados</div>';
+  }
+  document.getElementById('cot-items-wrap').innerHTML = itemsHtml;
   openSheet('cotizar');
 }
 
 async function saveCotizacion() {
   var reqId = document.getElementById('cot-req-id').value;
-  var monto = parseFloat(document.getElementById('cot-monto').value)||0;
+  var monto = parseFloat(document.getElementById('cot-monto-hidden').value)||0;
   var btn = document.getElementById('cot-save-btn');
   btn.textContent='Guardando...'; btn.disabled=true;
   try {
@@ -659,6 +685,22 @@ document.addEventListener('click', function(e){
   }
 });
 
+
+
+function calcCotTotal() {
+  var total = 0;
+  document.querySelectorAll('.cot-precio-unit').forEach(function(inp){
+    var precio = parseFloat(inp.value)||0;
+    var cant   = parseFloat(inp.dataset.cant)||1;
+    var idx    = inp.dataset.idx;
+    var sub    = precio * cant;
+    total += sub;
+    var subEl  = document.getElementById('cot-sub-'+idx);
+    if(subEl) subEl.textContent = '$'+sub.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+  });
+  document.getElementById('cot-total-display').textContent = '$'+total.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('cot-monto-hidden').value = total;
+}
 
 async function eliminarReq(reqId) {
   if(!confirm('¿Eliminar esta requisición? Esta acción no se puede deshacer.')) return;
