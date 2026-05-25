@@ -423,7 +423,7 @@ async function verDetalle(reqId) {
   else {
     html += '<div style="margin-bottom:12px">';
     items.forEach(function(it){
-      html += '<div class="item-row"><div style="flex:1"><div style="font-size:13px;font-weight:700">'+it.descripcion+'</div>'
+      html += '<div class="item-row"><div style="flex:1"><div style="font-size:13px;font-weight:700">'+(it.nombre_material||it.descripcion||'—')+'</div>'
         +(it.especificaciones?'<div class="item-sub">'+it.especificaciones+'</div>':'')+'</div>'
         +'<div style="text-align:right;font-size:13px;font-weight:700">'+it.cantidad+' '+it.unidad+'</div></div>';
     });
