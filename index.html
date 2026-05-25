@@ -177,11 +177,9 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.
       <label class="form-label">Notas generales</label>
       <textarea class="form-input" id="rq-notas" placeholder="Instrucciones especiales, lugar de entrega..."></textarea>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div class="card-label" style="margin:0">MATERIALES SOLICITADOS</div>
-      <button class="btn-sm" onclick="agregarItemForm()">+ Agregar</button>
-    </div>
-    <div id="rq-items-list" style="margin-bottom:16px"></div>
+    <div class="card-label" style="margin-bottom:10px">MATERIALES SOLICITADOS</div>
+    <div id="rq-items-list" style="margin-bottom:8px"></div>
+    <button class="btn-secondary" onclick="agregarItemForm()" style="margin-bottom:16px">+ Agregar material</button>
     <button class="btn-primary" id="rq-save-btn" onclick="saveRequisicion()">Enviar requisición</button>
     <button class="btn-secondary" onclick="closeSheet('nueva')">Cancelar</button>
     <div style="height:20px"></div>
@@ -389,7 +387,7 @@ async function verDetalle(reqId) {
   var r = reqData.find(function(x){ return x.id===reqId; });
   if(!r) return;
   var items = [];
-  try { items = await db('GET','requisicion_items?requisicion_id=eq.'+reqId) || []; } catch(e){}
+  try { items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; } catch(e){}
   var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
   var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
   var isCompras = currentUser.rol==='compras'||(currentUser.permisos&&currentUser.permisos.materiales);
@@ -534,8 +532,7 @@ async function saveRequisicion() {
       var it = validos[i];
       await db('POST','requisicion_items',{
         requisicion_id:reqId,
-        descripcion:it.descripcion.trim(),
-        especificaciones:it.especificaciones.trim(),
+        nombre_material:it.descripcion.trim(),
         cantidad:parseFloat(it.cantidad)||1,
         unidad:it.unidad||'pza'
       });
@@ -547,7 +544,7 @@ async function saveRequisicion() {
       +'👤 Solicitante: '+currentUser.nombre+'\n'
       +(payload.urgencia!=='normal'?'🔴 *'+payload.urgencia.toUpperCase()+'*\n':'')
       +'📦 Materiales:\n'
-      +validos.map(function(it,i){ return (i+1)+'. '+it.descripcion+' - '+it.cantidad+' '+it.unidad; }).join('\n');
+      +validos.map(function(it,i){ return (i+1)+'. '+it.descripcion.trim()+' - '+it.cantidad+' '+(it.unidad||'pza'); }).join('\n');
     var waUrl = 'https://wa.me/?text='+encodeURIComponent(msg);
     showToast('✅ Requisición enviada');
     closeSheet('nueva');
