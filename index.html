@@ -442,16 +442,9 @@ async function verDetalle(reqId) {
   }
 
   // Actions
-  if(r.estado==='pendiente' && isCompras) {
-    html += '<button class="btn-primary" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\')">💰 Cotizar</button>';
-  }
-  if(r.estado==='cotizada' && isDir) {
-    html += '<button class="btn-primary" onclick="autorizarReq(\''+reqId+'\')">✅ Autorizar compra</button>';
-    html += '<button class="btn-danger" onclick="rechazarReq(\''+reqId+'\')">❌ Rechazar</button>';
-  }
-  if(r.estado==='autorizada' && isCompras) {
-    html += '<button class="btn-primary" onclick="marcarComprada(\''+reqId+'\')">🛒 Marcar como comprada</button>';
-  }
+
+
+
   if(r.estado==='comprada' && (currentUser.tipo==='trabajador'||r.solicitante_id===currentUser.id)) {
     html += '<button class="btn-primary" onclick="confirmarRecepcion(\''+reqId+'\')">✅ Confirmar recepción</button>';
   }
