@@ -695,12 +695,26 @@ function calcCotTotal() {
   document.getElementById('cot-monto-hidden').value = total;
 }
 
-async function eliminarReq(reqId) {
-  if(!confirm('¿Eliminar esta requisición? Esta acción no se puede deshacer.')) return;
+function eliminarReq(reqId) {
+  var r = reqData.find(function(x){ return x.id===reqId; });
+  var folio = r ? 'REQ-'+r.folio : reqId.slice(0,8);
+  document.getElementById('confirm-del-msg').textContent = '¿Eliminar '+folio+'? Esta acción no se puede deshacer.';
+  window._delReqId = reqId;
+  openSheet('confirm-del');
+}
+
+async function doEliminarReq() {
+  var reqId = window._delReqId;
+  if(!reqId) return;
+  var btn = document.getElementById('confirm-del-btn');
+  btn.textContent='Eliminando...'; btn.disabled=true;
   try {
     await db('DELETE','requisicion_items?requisicion_id=eq.'+reqId);
+    await db('DELETE','comparativas?requisicion_id=eq.'+reqId);
+    await db('DELETE','recepciones?requisicion_id=eq.'+reqId);
     await db('DELETE','requisiciones?id=eq.'+reqId);
     showToast('🗑 Requisición eliminada');
+    closeSheet('confirm-del');
     closeSheet('detalle');
     await loadData();
     renderContent();
@@ -755,5 +769,17 @@ function closeSheet(id) { document.getElementById('sheet-'+id).classList.remove(
 document.getElementById('loading').style.display='none';
 document.getElementById('login-view').style.display='flex';
 </script>
+
+<!-- SHEET: Confirmar eliminar -->
+<div class="sheet-overlay" id="sheet-confirm-del">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" style="color:#EF4444">🗑 Eliminar requisición</div>
+    <div id="confirm-del-msg" style="font-size:14px;color:var(--dim);margin-bottom:20px">¿Estás seguro?</div>
+    <button class="btn-primary" id="confirm-del-btn" style="background:#EF4444;margin-bottom:10px" onclick="doEliminarReq()">Sí, eliminar</button>
+    <button class="btn-secondary" onclick="closeSheet('confirm-del')">Cancelar</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
 </body>
 </html>
