@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0A1628">
 <title>Requisiciones — Procepal</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -97,6 +99,38 @@ input[type="date"]{color-scheme:dark}
 .autocomplete-item:last-child{border-bottom:none}
 .autocomplete-item:active{background:var(--bg)}
 input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.4)}
+
+/* ── MOBILE OPTIMIZATIONS ── */
+.btn-primary,.btn-secondary,.btn-danger{min-height:48px}
+.btn-sm{min-height:36px}
+.form-input{font-size:16px!important;min-height:48px} /* 16px prevents iOS zoom */
+select.form-input{min-height:48px}
+.num-btn{min-height:64px}
+button{-webkit-user-select:none;user-select:none}
+.card{cursor:default}
+
+/* ── STATUS BADGE COLORS (case-insensitive via class) ── */
+.s-pendiente{background:#F0A50022;color:#F0A500;border:1px solid #F0A50044}
+.s-cotizada{background:#3B9EBF22;color:#3B9EBF;border:1px solid #3B9EBF44}
+.s-autorizada{background:#10B98122;color:#10B981;border:1px solid #10B98144}
+.s-rechazada{background:#EF444422;color:#EF4444;border:1px solid #EF444444}
+.s-comprada{background:#A78BFA22;color:#A78BFA;border:1px solid #A78BFA44}
+.s-recibida{background:#10B98122;color:#10B981;border:1px solid #10B98144}
+
+/* ── PDF OVERLAY ── */
+#pdf-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;overflow-y:auto;padding:16px 12px 40px}
+#pdf-overlay.open{display:block}
+#pdf-doc{background:#fff;color:#111;max-width:720px;margin:0 auto;padding:36px 40px;font-family:'Barlow',sans-serif;border-radius:8px}
+.pdf-bar{max-width:720px;margin:0 auto 12px;display:flex;gap:10px}
+.pdf-bar button{flex:1;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Barlow',sans-serif}
+.pdf-print-btn{background:#5BC4C0;color:#0A1628}
+.pdf-close-btn{background:#1E3A5F;color:#E8F4F8}
+@media print{
+  body>*{display:none!important}
+  #pdf-overlay{display:block!important;position:static!important;background:none!important;padding:0!important}
+  .pdf-bar{display:none!important}
+  #pdf-doc{border-radius:0!important;max-width:100%!important;padding:20px 28px!important}
+}
 </style>
 </head>
 <body>
@@ -360,7 +394,7 @@ function renderContent() {
     reqs = reqData;
     el.innerHTML = renderReqs(reqs, 'todas');
   } else if(curTab==='autorizar') {
-    reqs = reqData.filter(function(r){ return r.estado==='cotizada'; });
+    reqs = reqData.filter(function(r){ return (r.estado||'').toLowerCase()==='cotizada'; });
     el.innerHTML = '<div style="font-size:13px;color:var(--dim);margin-bottom:16px">Requisiciones cotizadas pendientes de autorización</div>' + renderReqs(reqs, 'autorizar');
   }
 }
@@ -377,11 +411,11 @@ function renderReqs(reqs, mode) {
     var urg = r.urgencia && r.urgencia!=='normal' ? '<span style="color:'+urgColors[r.urgencia]+';font-size:11px;font-weight:700"> '+( r.urgencia==='urgente'?'🔴 URGENTE':'🚨 MUY URGENTE')+'</span>' : '';
     return '<div class="card" onclick="verDetalle(\''+r.id+'\')" style="cursor:pointer">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
-      +'<div><div style="font-size:14px;font-weight:700">REQ-'+r.folio+'</div>'
+      +'<div><div style="font-size:14px;font-weight:700">'+fmtFolio(r)+'</div>'
       +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
       +'<div class="item-sub">'+r.solicitante_nombre+(r.fecha_requerida?' · Req: '+fmtDate(r.fecha_requerida):'')+'</div>'
       +'</div>'
-      +'<div style="text-align:right"><span class="badge s-'+r.estado+'">'+r.estado+'</span>'+urg+'</div>'
+      +'<div style="text-align:right">'+reqBadge(r.estado)+urg+'</div>'
       +'</div>'
       +(r.notas?'<div style="font-size:12px;color:var(--dim);margin-top:4px">'+r.notas+'</div>':'')
       +'</div>';
@@ -390,9 +424,26 @@ function renderReqs(reqs, mode) {
 
 function fmtDate(d) {
   if(!d) return '—';
-  var parts = d.split('-');
-  var meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  return parseInt(parts[2])+' '+meses[parseInt(parts[1])];
+  var dt = d.includes('T') ? new Date(d) : new Date(d+'T12:00:00');
+  if(isNaN(dt)) return '—';
+  var meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return dt.getDate()+' '+meses[dt.getMonth()]+' '+dt.getFullYear();
+}
+
+function fmtFolio(r) {
+  if(!r) return '—';
+  var f = r.folio ? r.folio.toString() : '';
+  if(f.startsWith('REQ-')) return f;
+  if(f) return 'REQ-'+f;
+  return 'REQ-'+r.id.slice(0,6).toUpperCase();
+}
+
+var _reqColors = {pendiente:'#F59E0B','en comparativa':'#3B82F6',cotizada:'#3B9EBF',autorizada:'#10B981',rechazada:'#EF4444',comprada:'#A78BFA',recibida:'#10B981'};
+function reqBadge(estado) {
+  var e = (estado||'pendiente').toLowerCase();
+  var color = _reqColors[e] || '#8B949E';
+  var label = e.charAt(0).toUpperCase()+e.slice(1);
+  return '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:'+color+'22;color:'+color+';border:1px solid '+color+'55">'+label+'</span>';
 }
 
 // ── DETALLE ────────────────────────────────────────────
@@ -406,10 +457,10 @@ async function verDetalle(reqId) {
   var isCompras = currentUser.rol==='compras'||(currentUser.permisos&&currentUser.permisos.materiales);
 
   var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
-    +'<div><div style="font-size:20px;font-weight:800">REQ-'+r.folio+'</div>'
+    +'<div><div style="font-size:20px;font-weight:800">'+fmtFolio(r)+'</div>'
     +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
     +'<div class="item-sub">'+r.solicitante_nombre+' · '+fmtDate(r.created_at)+'</div></div>'
-    +'<span class="badge s-'+r.estado+'">'+r.estado+'</span>'
+    +reqBadge(r.estado)
     +'</div>';
 
   if(r.urgencia && r.urgencia!=='normal')
@@ -446,16 +497,26 @@ async function verDetalle(reqId) {
   }
 
   // Actions
+  var est = (r.estado||'pendiente').toLowerCase();
+  if(isDir && est==='cotizada') {
+    html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="autorizarReq(\''+reqId+'\')">✓ Autorizar compra</button>';
+    html += '<button class="btn-danger" style="margin-bottom:8px" onclick="rechazarReq(\''+reqId+'\')">✗ Rechazar</button>';
+  }
+  if(isCompras && est==='pendiente') {
+    html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\')">💰 Cotizar</button>';
+  }
+  if(isCompras && est==='autorizada') {
+    html += '<button class="btn-primary" style="margin-bottom:8px" onclick="marcarComprada(\''+reqId+'\')">🛒 Marcar como comprada</button>';
+  }
 
-
-
-  if(r.estado==='comprada' && (currentUser.tipo==='trabajador'||r.solicitante_id===currentUser.id)) {
+  if(est==='comprada' && (currentUser.tipo==='trabajador'||r.solicitante_id===currentUser.id)) {
     html += '<button class="btn-primary" onclick="confirmarRecepcion(\''+reqId+'\')">✅ Confirmar recepción</button>';
   }
   // Show delete button for admin or own pending requisition
-  var canDelete = currentUser.rol==='admin'||currentUser.rol==='director'||(r.solicitante_id===currentUser.id&&r.estado==='pendiente');
-  if(canDelete) html += '<button class="btn-danger" onclick="eliminarReq(\''+reqId+'\')">🗑 Eliminar requisición</button>';
-  html += '<button class="btn-secondary" onclick="closeSheet(\'detalle\')" style="margin-top:8px">Cerrar</button>';
+  var canDelete = currentUser.rol==='admin'||currentUser.rol==='director'||(r.solicitante_id===currentUser.id&&est==='pendiente');
+  if(canDelete) html += '<button class="btn-danger" style="margin-bottom:8px" onclick="eliminarReq(\''+reqId+'\')">🗑 Eliminar requisición</button>';
+  html += '<button class="btn-sm" style="width:100%;padding:10px;border-radius:10px;background:#3B82F622;border:1px solid #3B82F644;color:#3B82F6;font-size:13px;font-weight:700;margin-bottom:8px" onclick="generarPDF(\''+reqId+'\')">📄 Generar PDF</button>';
+  html += '<button class="btn-secondary" onclick="closeSheet(\'detalle\')" style="margin-top:4px">Cerrar</button>';
 
   document.getElementById('detalle-content').innerHTML = html;
   openSheet('detalle');
@@ -528,7 +589,11 @@ async function saveRequisicion() {
   var btn = document.getElementById('rq-save-btn');
   btn.textContent='Enviando...'; btn.disabled=true;
   try {
-    var folio = Math.floor(100000+Math.random()*900000);
+    var anio = new Date().getFullYear();
+    var todasReqs = [];
+    try { todasReqs = await db('GET','requisiciones?order=created_at.asc') || []; } catch(e){}
+    var desteAnio = todasReqs.filter(function(x){ return x.folio && x.folio.toString().startsWith('REQ-'+anio+'-'); });
+    var folio = 'REQ-'+anio+'-'+String(desteAnio.length+1).padStart(3,'0');
     var payload = {
       folio: folio,
       obra_id: document.getElementById('rq-obra').value,
@@ -552,7 +617,7 @@ async function saveRequisicion() {
     }
     // WhatsApp notification
     var obra = obrasData.find(function(o){ return o.id===payload.obra_id; });
-    var msg = '📋 *Nueva Requisición REQ-'+folio+'*\n'
+    var msg = '📋 *Nueva Requisición '+folio+'*\n'
       +'🏗 Obra: '+(obra?obra.nombre:'—')+'\n'
       +'👤 Solicitante: '+currentUser.nombre+'\n'
       +(payload.urgencia!=='normal'?'🔴 *'+payload.urgencia.toUpperCase()+'*\n':'')
@@ -636,7 +701,7 @@ async function saveCotizacion() {
     // WhatsApp to director
     var r = reqData.find(function(x){ return x.id===reqId; });
     var obra = obrasData.find(function(o){ return o.id===(r&&r.obra_id); });
-    var msg = '💰 *Cotización lista - REQ-'+(r?r.folio:'')+'*\n'
+    var msg = '💰 *Cotización lista - '+(r?fmtFolio(r):'')+'*\n'
       +'🏗 '+( obra?obra.nombre:'—')+'\n'
       +'🏪 Proveedor: '+document.getElementById('cot-proveedor').value+'\n'
       +'💵 Monto: $'+monto.toLocaleString()+'\n'
@@ -742,7 +807,7 @@ function calcCotTotal() {
 
 function eliminarReq(reqId) {
   var r = reqData.find(function(x){ return x.id===reqId; });
-  var folio = r ? 'REQ-'+r.folio : reqId.slice(0,8);
+  var folio = r ? fmtFolio(r) : reqId.slice(0,8);
   document.getElementById('confirm-del-msg').textContent = '¿Eliminar '+folio+'? Esta acción no se puede deshacer.';
   window._delReqId = reqId;
   openSheet('confirm-del');
@@ -806,6 +871,101 @@ async function confirmarRecepcion(reqId) {
   } catch(e){ showToast('Error',true); }
 }
 
+// ── PDF ───────────────────────────────────────────────
+async function generarPDF(reqId) {
+  var r = reqData.find(function(x){ return x.id===reqId; });
+  if(!r) return;
+  var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
+  var items = [];
+  try { items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; } catch(e){}
+  var recepciones = [];
+  try { recepciones = await db('GET','recepciones?requisicion_id=eq.'+reqId+'&order=created_at.asc') || []; } catch(e){}
+
+  var folio = fmtFolio(r);
+  var now = new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  var _ec = {pendiente:'#F59E0B','en comparativa':'#3B82F6',cotizada:'#3B9EBF',autorizada:'#10B981',rechazada:'#EF4444',comprada:'#A78BFA',recibida:'#10B981'};
+  var estadoColor = _ec[(r.estado||'pendiente').toLowerCase()] || '#F59E0B';
+  var estadoLabel = (r.estado||'pendiente').charAt(0).toUpperCase()+(r.estado||'pendiente').slice(1);
+
+  var itemsRows = items.length ? items.map(function(it){
+    var nom = it.nombre_material||it.descripcion||'—';
+    var rec = recepciones.filter(function(rc){ return rc.nombre_material&&rc.nombre_material.toLowerCase()===nom.toLowerCase(); })
+      .reduce(function(s,rc){ return s+(rc.cantidad_recibida||0); },0);
+    var sol = it.cantidad||0;
+    var pen = Math.max(0,sol-rec);
+    var pct = sol>0?Math.min(100,Math.round((rec/sol)*100)):0;
+    var pctColor = pct>=100?'#10B981':pct>0?'#F59E0B':'#9CA3AF';
+    return '<tr><td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:13px;font-weight:600">'+nom+'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:13px;text-align:center">'+sol+' '+(it.unidad||'pza')+'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:13px;text-align:center;color:#10B981;font-weight:600">'+rec+' '+(it.unidad||'pza')+'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:13px;text-align:center;color:'+(pen>0?'#F59E0B':'#9CA3AF')+'">'+(pen>0?pen+' '+(it.unidad||'pza'):'—')+'</td>'
+      +'<td style="padding:8px 10px;border-bottom:1px solid #E5E7EB;font-size:13px;text-align:center;font-weight:700;color:'+pctColor+'">'+pct+'%</td></tr>';
+  }).join('') : '<tr><td colspan="5" style="padding:14px;color:#9CA3AF;text-align:center">Sin materiales</td></tr>';
+
+  var recepRows = recepciones.length ? recepciones.map(function(rec){
+    return '<tr><td style="padding:7px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;font-weight:600">'+(rec.nombre_material||'—')+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;text-align:center">'+(rec.cantidad_recibida||0)+' uds</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #E5E7EB;font-size:12px">'+(rec.recibio||'—')+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #E5E7EB;font-size:12px">'+(rec.ubicacion||'—')+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;color:#0D9488;font-weight:600">'+(rec.factura||'—')+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;color:#6B7280">'+fmtDate(rec.fecha||rec.created_at)+'</td></tr>';
+  }).join('') : '<tr><td colspan="6" style="padding:14px;color:#9CA3AF;text-align:center">Sin recepciones</td></tr>';
+
+  var urgHtml = (r.urgencia&&r.urgencia!=='normal')
+    ? '<div style="background:#EF444415;border:1px solid #EF444433;border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:12px;font-weight:700;color:#EF4444">'+(r.urgencia==='urgente'?'🔴 URGENTE':'🚨 MUY URGENTE')+'</div>' : '';
+
+  document.getElementById('pdf-doc').innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:18px;border-bottom:3px solid #0D1117">'
+    +'<div><div style="font-size:10px;font-weight:700;letter-spacing:3px;color:#5BC4C0;text-transform:uppercase;margin-bottom:4px">PROCEPAL — Requisiciones de Material</div>'
+    +'<div style="font-size:26px;font-weight:800;color:#0D1117">'+folio+'</div>'
+    +'<div style="font-size:12px;color:#6B7280;margin-top:4px">Generado: '+now+'</div></div>'
+    +'<div><div style="display:inline-block;background:'+estadoColor+'22;border:2px solid '+estadoColor+';border-radius:20px;padding:6px 16px;font-size:13px;font-weight:800;color:'+estadoColor+'">'+estadoLabel+'</div></div>'
+    +'</div>'
+    +urgHtml
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">'
+    +'<div style="background:#F9FAFB;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Obra / Proyecto</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#111">'+(obra?obra.nombre:'—')+'</div></div>'
+    +'<div style="background:#F9FAFB;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Solicitante</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#111">'+(r.solicitante_nombre||r.solicitante||'—')+'</div>'
+    +'<div style="font-size:12px;color:#6B7280;margin-top:2px">Fecha: '+fmtDate(r.created_at)+'</div></div>'
+    +(r.fecha_requerida?'<div style="background:#FFF7ED;border:1px solid #F59E0B44;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Fecha Requerida</div><div style="font-size:15px;font-weight:700;color:#F59E0B">'+fmtDate(r.fecha_requerida)+'</div></div>':'')
+    +(r.notas?'<div style="background:#F9FAFB;border-radius:10px;padding:14px'+(r.fecha_requerida?'':';grid-column:1/-1')+'">'
+      +'<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Notas</div>'
+      +'<div style="font-size:13px;color:#374151">'+r.notas+'</div></div>':'')
+    +(r.proveedor?'<div style="background:#F0FDF4;border:1px solid #10B98144;border-radius:10px;padding:14px;grid-column:1/-1">'
+      +'<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Proveedor / Cotización</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#10B981">'+r.proveedor+'</div>'
+      +(r.monto_cotizado?'<div style="font-size:20px;font-weight:800;color:#10B981;margin-top:2px">$'+parseFloat(r.monto_cotizado).toLocaleString('es-MX')+'</div>':'')
+      +(r.tiempo_entrega?'<div style="font-size:12px;color:#6B7280;margin-top:2px">Entrega: '+r.tiempo_entrega+'</div>':'')
+      +'</div>':'')
+    +'</div>'
+    +'<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:10px">Materiales Solicitados</div>'
+    +'<table style="width:100%;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden">'
+    +'<thead><tr style="background:#F3F4F6">'
+    +'<th style="padding:9px 10px;text-align:left;font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase">Material</th>'
+    +'<th style="padding:9px 10px;text-align:center;font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase">Solicitado</th>'
+    +'<th style="padding:9px 10px;text-align:center;font-size:11px;font-weight:700;color:#10B981;text-transform:uppercase">Recibido</th>'
+    +'<th style="padding:9px 10px;text-align:center;font-size:11px;font-weight:700;color:#F59E0B;text-transform:uppercase">Pendiente</th>'
+    +'<th style="padding:9px 10px;text-align:center;font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase">Avance</th>'
+    +'</tr></thead><tbody>'+itemsRows+'</tbody></table></div>'
+    +'<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:10px">Historial de Recepciones</div>'
+    +'<table style="width:100%;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden">'
+    +'<thead><tr style="background:#F3F4F6">'
+    +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase">Material</th>'
+    +'<th style="padding:8px 10px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase">Cant.</th>'
+    +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase">Recibió</th>'
+    +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase">Ubicación</th>'
+    +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#0D9488;text-transform:uppercase">Factura/Rem.</th>'
+    +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase">Fecha</th>'
+    +'</tr></thead><tbody>'+recepRows+'</tbody></table></div>'
+    +'<div style="border-top:1px solid #E5E7EB;padding-top:14px;display:flex;justify-content:space-between">'
+    +'<div style="font-size:10px;color:#9CA3AF">PROCEPAL — Sistema de Requisiciones · '+folio+'</div>'
+    +'<div style="font-size:10px;color:#9CA3AF">'+now+'</div></div>';
+
+  document.getElementById('pdf-overlay').classList.add('open');
+  document.getElementById('pdf-overlay').scrollTop=0;
+}
+
 // ── SHEETS ────────────────────────────────────────────
 function openSheet(id) { document.getElementById('sheet-'+id).classList.add('open'); }
 function closeSheet(id) { document.getElementById('sheet-'+id).classList.remove('open'); }
@@ -825,6 +985,15 @@ document.getElementById('login-view').style.display='flex';
     <button class="btn-secondary" onclick="closeSheet('confirm-del')">Cancelar</button>
     <div style="height:20px"></div>
   </div>
+</div>
+
+<!-- PDF OVERLAY -->
+<div id="pdf-overlay">
+  <div class="pdf-bar">
+    <button class="pdf-print-btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+    <button class="pdf-close-btn" onclick="document.getElementById('pdf-overlay').classList.remove('open')">✕ Cerrar</button>
+  </div>
+  <div id="pdf-doc"></div>
 </div>
 </body>
 </html>
