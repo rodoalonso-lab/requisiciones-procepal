@@ -331,7 +331,10 @@ async function verificarPin() {
     }
     obrasData = await db('GET','obras?order=nombre') || [];
     try{ materialesFrecuentes = await db('GET','materiales_frecuentes?order=usos.desc,nombre.asc') || []; }catch(e){ materialesFrecuentes=[]; }
-    reqData = await db('GET','requisiciones?order=created_at.desc') || [];
+    var _isAdmin = currentUser.rol==='admin'||currentUser.rol==='director';
+    var _isCompras = currentUser.rol==='compras';
+    var _allReqs = await db('GET','requisiciones?order=created_at.desc') || [];
+    reqData = (_isAdmin||_isCompras) ? _allReqs : _filtrarMisReqs(_allReqs);
     mostrarMain();
   } catch(e) {
     document.getElementById('login-error').textContent = 'Error de conexión';
@@ -350,11 +353,14 @@ function mostrarMain() {
   document.getElementById('login-view').style.display='none';
   document.getElementById('main-view').style.display='flex';
   document.getElementById('top-user').textContent = currentUser.nombre + ' · ' + rolLabel(currentUser.rol);
-  // Show tabs based on role
-  var isCompras = currentUser.rol==='compras' || (currentUser.permisos&&currentUser.permisos.materiales);
+  var isCompras = currentUser.rol==='compras';
   var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
-  document.getElementById('tab-todas').style.display = (isCompras||isDir)?'':'none';
-  document.getElementById('tab-autorizar').style.display = isDir?'':'none';
+  // Tab "Todas" visible para compras y admin/director
+  document.getElementById('tab-todas').style.display = (isCompras||isDir) ? '' : 'none';
+  // Tab "Autorizar" solo para admin/director
+  document.getElementById('tab-autorizar').style.display = isDir ? '' : 'none';
+  // Rename "Mis requisiciones" tab label based on role
+  document.getElementById('tab-mis').textContent = '📋 Mis requisiciones';
   setTab('mis');
 }
 
@@ -373,27 +379,47 @@ function setTab(tab) {
 }
 
 async function loadData() {
+  var isAdmin = currentUser.rol==='admin'||currentUser.rol==='director';
+  var isCompras = currentUser.rol==='compras';
+  // Always load all for admin/compras; load all and filter client-side for others
+  // (solicitante_id may not always match perfectly across tables)
   reqData = await db('GET','requisiciones?order=created_at.desc') || [];
+  if(!isAdmin && !isCompras) {
+    reqData = _filtrarMisReqs(reqData);
+  }
+}
+
+function _filtrarMisReqs(all) {
+  var nombre = (currentUser.nombre||'').toLowerCase().trim();
+  return all.filter(function(r){
+    // The table uses a plain text 'solicitante' field
+    var sol = (r.solicitante||r.solicitante||r.solicitante_nombre||'').toLowerCase().trim();
+    return sol === nombre;
+  });
 }
 
 // ── RENDER ─────────────────────────────────────────────
 function renderContent() {
   var el = document.getElementById('content');
   var reqs = [];
+  var isAdmin = currentUser.rol==='admin'||currentUser.rol==='director';
+  var isCompras = currentUser.rol==='compras';
 
   if(curTab==='mis') {
-    // Field worker sees their own reqs; management sees all
-    if(currentUser.tipo==='trabajador') {
-      reqs = reqData.filter(function(r){ return r.solicitante_id===currentUser.id; });
-    } else {
-      reqs = reqData.filter(function(r){ return r.solicitante_id===currentUser.id; });
-    }
+    var isAdminR = currentUser.rol==='admin'||currentUser.rol==='director';
+    var isComprasR = currentUser.rol==='compras';
+    // For regular users: double-filter even if loadData already filtered (safety net)
+    reqs = (isAdminR||isComprasR) ? [] : _filtrarMisReqs(reqData);
+    // Admin/compras use "Todas" tab — "Mis" shows only their own submissions
+    if(isAdminR||isComprasR) reqs = _filtrarMisReqs(reqData);
     var btnNueva = '<button class="btn-primary" onclick="abrirNueva()" style="margin-bottom:16px">+ Nueva requisición</button>';
     el.innerHTML = btnNueva + renderReqs(reqs, 'mis');
   } else if(curTab==='todas') {
+    // Admin and compras see all requisitions
     reqs = reqData;
     el.innerHTML = renderReqs(reqs, 'todas');
   } else if(curTab==='autorizar') {
+    // Director sees cotizadas pending authorization
     reqs = reqData.filter(function(r){ return (r.estado||'').toLowerCase()==='cotizada'; });
     el.innerHTML = '<div style="font-size:13px;color:var(--dim);margin-bottom:16px">Requisiciones cotizadas pendientes de autorización</div>' + renderReqs(reqs, 'autorizar');
   }
@@ -413,7 +439,7 @@ function renderReqs(reqs, mode) {
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
       +'<div><div style="font-size:14px;font-weight:700">'+fmtFolio(r)+'</div>'
       +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
-      +'<div class="item-sub">'+r.solicitante_nombre+(r.fecha_requerida?' · Req: '+fmtDate(r.fecha_requerida):'')+'</div>'
+      +'<div class="item-sub">'+r.solicitante||r.solicitante_nombre+(r.fecha_requerida?' · Req: '+fmtDate(r.fecha_requerida):'')+'</div>'
       +'</div>'
       +'<div style="text-align:right">'+reqBadge(r.estado)+urg+'</div>'
       +'</div>'
@@ -454,12 +480,12 @@ async function verDetalle(reqId) {
   try { items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; } catch(e){}
   var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
   var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
-  var isCompras = currentUser.rol==='compras'||(currentUser.permisos&&currentUser.permisos.materiales);
+  var isCompras = currentUser.rol==='compras';
 
   var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
     +'<div><div style="font-size:20px;font-weight:800">'+fmtFolio(r)+'</div>'
     +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
-    +'<div class="item-sub">'+r.solicitante_nombre+' · '+fmtDate(r.created_at)+'</div></div>'
+    +'<div class="item-sub">'+r.solicitante||r.solicitante_nombre+' · '+fmtDate(r.created_at)+'</div></div>'
     +reqBadge(r.estado)
     +'</div>';
 
@@ -509,11 +535,16 @@ async function verDetalle(reqId) {
     html += '<button class="btn-primary" style="margin-bottom:8px" onclick="marcarComprada(\''+reqId+'\')">🛒 Marcar como comprada</button>';
   }
 
-  if(est==='comprada' && (currentUser.tipo==='trabajador'||r.solicitante_id===currentUser.id)) {
+  if(est==='comprada' && (currentUser.tipo==='trabajador'||(r.solicitante||'').toLowerCase()===(currentUser.nombre||'').toLowerCase())) {
     html += '<button class="btn-primary" onclick="confirmarRecepcion(\''+reqId+'\')">✅ Confirmar recepción</button>';
   }
   // Show delete button for admin or own pending requisition
-  var canDelete = currentUser.rol==='admin'||currentUser.rol==='director'||(r.solicitante_id===currentUser.id&&est==='pendiente');
+  var esMia = (r.solicitante||'').toLowerCase()===(currentUser.nombre||'').toLowerCase();
+  var canDelete = currentUser.rol==='admin'||currentUser.rol==='director'||(esMia&&est==='pendiente');
+  // Edit button — own pending reqs only
+  if(esMia && est==='pendiente') {
+    html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirEditar(\''+reqId+'\')">✏️ Editar requisición</button>';
+  }
   if(canDelete) html += '<button class="btn-danger" style="margin-bottom:8px" onclick="eliminarReq(\''+reqId+'\')">🗑 Eliminar requisición</button>';
   html += '<button class="btn-sm" style="width:100%;padding:10px;border-radius:10px;background:#3B82F622;border:1px solid #3B82F644;color:#3B82F6;font-size:13px;font-weight:700;margin-bottom:8px" onclick="generarPDF(\''+reqId+'\')">📄 Generar PDF</button>';
   html += '<button class="btn-secondary" onclick="closeSheet(\'detalle\')" style="margin-top:4px">Cerrar</button>';
@@ -597,8 +628,7 @@ async function saveRequisicion() {
     var payload = {
       folio: folio,
       obra_id: document.getElementById('rq-obra').value,
-      solicitante_id: currentUser.id,
-      solicitante_nombre: document.getElementById('rq-solicitante').value.trim()||currentUser.nombre,
+      solicitante: document.getElementById('rq-solicitante').value.trim()||currentUser.nombre,
       urgencia: document.getElementById('rq-urgencia').value,
       fecha_requerida: document.getElementById('rq-fecha').value||null,
       notas: document.getElementById('rq-notas').value.trim(),
@@ -871,7 +901,108 @@ async function confirmarRecepcion(reqId) {
   } catch(e){ showToast('Error',true); }
 }
 
-// ── PDF ───────────────────────────────────────────────
+// ── EDITAR REQUISICIÓN ────────────────────────────────
+var _editReqId = null;
+var _editItems = [];
+
+async function abrirEditar(reqId) {
+  var r = reqData.find(function(x){ return x.id===reqId; });
+  if(!r) return;
+  _editReqId = reqId;
+  _editItems = [];
+
+  // Load items
+  var items = [];
+  try { items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; } catch(e){}
+
+  // Populate obra select
+  var misObras = currentUser.tipo==='trabajador'
+    ? (currentUser.todos_proyectos ? obrasData : obrasData.filter(function(o){ return o.id===currentUser.obra_id; }))
+    : obrasData;
+  var sel = document.getElementById('edit-obra');
+  sel.innerHTML = misObras.map(function(o){ return '<option value="'+o.id+'"'+(o.id===r.obra_id?' selected':'')+'>'+o.nombre+'</option>'; }).join('');
+
+  document.getElementById('edit-solicitante').value = r.solicitante||currentUser.nombre;
+  document.getElementById('edit-urgencia').value = r.urgencia||'normal';
+  document.getElementById('edit-fecha').value = r.fecha_requerida||'';
+  document.getElementById('edit-notas').value = r.notas||'';
+
+  // Load items into edit form
+  _editItems = items.map(function(it){ return {id:it.id, descripcion:it.nombre_material||it.descripcion||'', cantidad:it.cantidad||1, unidad:it.unidad||'pza'}; });
+  renderEditItems();
+  openSheet('editar');
+}
+
+function renderEditItems() {
+  var el = document.getElementById('edit-items-list');
+  if(!_editItems.length) {
+    el.innerHTML = '<div class="item-sub" style="margin-bottom:8px">Toca "+ Agregar" para añadir materiales</div>';
+    return;
+  }
+  el.innerHTML = _editItems.map(function(it,i){
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:8px">'
+      +'<span style="font-size:12px;font-weight:700;color:var(--dim)">MATERIAL '+(i+1)+'</span>'
+      +'<button onclick="eliminarEditItem('+i+')" style="border:none;background:none;color:#EF4444;font-size:14px;cursor:pointer">🗑</button>'
+      +'</div>'
+      +'<input class="form-input" placeholder="Descripción *" value="'+it.descripcion+'" oninput="_editItems['+i+'].descripcion=this.value" style="margin-bottom:8px">'
+      +'<div style="display:flex;gap:8px">'
+      +'<input class="form-input" type="number" placeholder="Cant." value="'+it.cantidad+'" oninput="_editItems['+i+'].cantidad=this.value" style="flex:1">'
+      +'<select class="form-input" onchange="_editItems['+i+'].unidad=this.value" style="flex:1">'
+      +'<option '+(it.unidad==='pza'?'selected':'')+'>pza</option>'
+      +'<option '+(it.unidad==='m'?'selected':'')+'>m</option>'
+      +'<option '+(it.unidad==='m2'?'selected':'')+'>m2</option>'
+      +'<option '+(it.unidad==='kg'?'selected':'')+'>kg</option>'
+      +'<option '+(it.unidad==='lt'?'selected':'')+'>lt</option>'
+      +'<option '+(it.unidad==='caja'?'selected':'')+'>caja</option>'
+      +'<option '+(it.unidad==='rollo'?'selected':'')+'>rollo</option>'
+      +'<option '+(it.unidad==='juego'?'selected':'')+'>juego</option>'
+      +'</select>'
+      +'</div></div>';
+  }).join('');
+}
+
+function agregarEditItem() {
+  _editItems.push({descripcion:'',cantidad:1,unidad:'pza'});
+  renderEditItems();
+}
+
+function eliminarEditItem(i) {
+  _editItems.splice(i,1);
+  renderEditItems();
+}
+
+async function saveEditar() {
+  if(!_editReqId) return;
+  var validos = _editItems.filter(function(it){ return it.descripcion.trim(); });
+  if(!validos.length) { showToast('Agrega al menos un material',true); return; }
+  var btn = document.getElementById('edit-save-btn');
+  btn.textContent='Guardando...'; btn.disabled=true;
+  try {
+    await db('PATCH','requisiciones?id=eq.'+_editReqId,{
+      obra_id: document.getElementById('edit-obra').value,
+      solicitante: document.getElementById('edit-solicitante').value.trim(),
+      urgencia: document.getElementById('edit-urgencia').value,
+      fecha_requerida: document.getElementById('edit-fecha').value||null,
+      notas: document.getElementById('edit-notas').value.trim()
+    });
+    // Replace items
+    await db('DELETE','requisicion_items?requisicion_id=eq.'+_editReqId);
+    for(var i=0;i<validos.length;i++){
+      await db('POST','requisicion_items',{
+        requisicion_id:_editReqId,
+        nombre_material:validos[i].descripcion.trim(),
+        cantidad:parseFloat(validos[i].cantidad)||1,
+        unidad:validos[i].unidad||'pza'
+      });
+    }
+    showToast('✅ Requisición actualizada');
+    closeSheet('editar');
+    await loadData();
+    renderContent();
+  } catch(e){ showToast('Error: '+e.message,true); }
+  btn.textContent='Guardar cambios'; btn.disabled=false;
+}
 async function generarPDF(reqId) {
   var r = reqData.find(function(x){ return x.id===reqId; });
   if(!r) return;
@@ -926,7 +1057,7 @@ async function generarPDF(reqId) {
     +'<div style="background:#F9FAFB;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Obra / Proyecto</div>'
     +'<div style="font-size:15px;font-weight:700;color:#111">'+(obra?obra.nombre:'—')+'</div></div>'
     +'<div style="background:#F9FAFB;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Solicitante</div>'
-    +'<div style="font-size:15px;font-weight:700;color:#111">'+(r.solicitante_nombre||r.solicitante||'—')+'</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#111">'+(r.solicitante||r.solicitante_nombre||r.solicitante||'—')+'</div>'
     +'<div style="font-size:12px;color:#6B7280;margin-top:2px">Fecha: '+fmtDate(r.created_at)+'</div></div>'
     +(r.fecha_requerida?'<div style="background:#FFF7ED;border:1px solid #F59E0B44;border-radius:10px;padding:14px"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px">Fecha Requerida</div><div style="font-size:15px;font-weight:700;color:#F59E0B">'+fmtDate(r.fecha_requerida)+'</div></div>':'')
     +(r.notas?'<div style="background:#F9FAFB;border-radius:10px;padding:14px'+(r.fecha_requerida?'':';grid-column:1/-1')+'">'
@@ -983,6 +1114,44 @@ document.getElementById('login-view').style.display='flex';
     <div id="confirm-del-msg" style="font-size:14px;color:var(--dim);margin-bottom:20px">¿Estás seguro?</div>
     <button class="btn-primary" id="confirm-del-btn" style="background:#EF4444;margin-bottom:10px" onclick="doEliminarReq()">Sí, eliminar</button>
     <button class="btn-secondary" onclick="closeSheet('confirm-del')">Cancelar</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- SHEET: Editar requisición -->
+<div class="sheet-overlay" id="sheet-editar">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">✏️ Editar Requisición</div>
+    <div class="form-group">
+      <label class="form-label">Obra *</label>
+      <select class="form-input" id="edit-obra"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Solicitante</label>
+      <input class="form-input" id="edit-solicitante" type="text">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Urgencia</label>
+      <select class="form-input" id="edit-urgencia">
+        <option value="normal">Normal</option>
+        <option value="urgente">🔴 Urgente</option>
+        <option value="muy_urgente">🚨 Muy urgente</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fecha requerida</label>
+      <input class="form-input" id="edit-fecha" type="date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notas</label>
+      <textarea class="form-input" id="edit-notas" placeholder="Instrucciones especiales..."></textarea>
+    </div>
+    <div class="card-label" style="margin-bottom:10px">MATERIALES</div>
+    <div id="edit-items-list" style="margin-bottom:8px"></div>
+    <button class="btn-secondary" onclick="agregarEditItem()" style="margin-bottom:16px">+ Agregar material</button>
+    <button class="btn-primary" id="edit-save-btn" onclick="saveEditar()">Guardar cambios</button>
+    <button class="btn-secondary" onclick="closeSheet('editar')">Cancelar</button>
     <div style="height:20px"></div>
   </div>
 </div>
