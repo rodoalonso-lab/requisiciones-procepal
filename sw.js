@@ -2,11 +2,11 @@
 // Versión: cambia este número cada vez que hagas un deploy para forzar actualización
 const CACHE_VERSION = 'procepal-v1';
 const CACHE_FILES = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/requisiciones-procepal/',
+  '/requisiciones-procepal/index.html',
+  '/requisiciones-procepal/manifest.json',
+  '/requisiciones-procepal/icon-192.png',
+  '/requisiciones-procepal/icon-512.png'
 ];
 
 // Instalar — guarda archivos en caché
