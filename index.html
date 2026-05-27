@@ -439,7 +439,7 @@ function renderReqs(reqs, mode) {
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
       +'<div><div style="font-size:14px;font-weight:700">'+fmtFolio(r)+'</div>'
       +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
-      +'<div class="item-sub">'+r.solicitante||r.solicitante_nombre+(r.fecha_requerida?' · Req: '+fmtDate(r.fecha_requerida):'')+'</div>'
+      +'<div class="item-sub">'+(r.solicitante||r.solicitante_nombre||'—')+(r.fecha_requerida?' · Req: '+fmtDate(r.fecha_requerida):'')+'</div>'
       +'</div>'
       +'<div style="text-align:right">'+reqBadge(r.estado)+urg+'</div>'
       +'</div>'
@@ -891,14 +891,118 @@ async function marcarComprada(reqId) {
   } catch(e){ showToast('Error',true); }
 }
 
+// ── RECEPCIÓN ────────────────────────────────────────
+var _recepReqId = null;
+
+function getNombresRecibio() {
+  try { return JSON.parse(localStorage.getItem('nombres_recibio')||'[]'); } catch(e){ return []; }
+}
+function saveNombreRecibio(nombre) {
+  if(!nombre) return;
+  var lista = getNombresRecibio();
+  nombre = nombre.trim();
+  if(!lista.includes(nombre)) { lista.unshift(nombre); if(lista.length>20) lista.pop(); localStorage.setItem('nombres_recibio',JSON.stringify(lista)); }
+}
+
 async function confirmarRecepcion(reqId) {
-  if(!confirm('¿Confirmar que recibiste los materiales?')) return;
+  _recepReqId = reqId;
+  var r = reqData.find(function(x){ return x.id===reqId; });
+
+  // Load pending items
+  var items = [];
+  var itemsError = null;
+  try { 
+    var res = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId);
+    items = res || [];
+  } catch(e){ itemsError = e.message; }
+
+  var recepciones = [];
+  try { recepciones = await db('GET','recepciones?requisicion_id=eq.'+reqId) || []; } catch(e){}
+
+  // Build items checklist
+  var itemsHtml = '';
+  if(itemsError) {
+    itemsHtml = '<div style="color:#EF4444;font-size:12px;margin-bottom:8px">Error: '+itemsError+'</div>';
+  } else if(!items.length) {
+    itemsHtml = '<div style="color:var(--dim);font-size:12px;margin-bottom:8px">No se encontraron materiales en la tabla requisicion_items para esta requisición.</div>';
+  } else {
+    itemsHtml = items.map(function(it,i){
+      var nom = it.nombre_material||it.descripcion||'—';
+      var recibido = recepciones.filter(function(rc){ return (rc.nombre_material||'').toLowerCase()===nom.toLowerCase(); })
+        .reduce(function(s,rc){ return s+(rc.cantidad_recibida||0); },0);
+      var pendiente = Math.max(0,(it.cantidad||0)-recibido);
+      if(pendiente<=0) return '';
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center">'
+        +'<div><div style="font-size:13px;font-weight:700">'+nom+'</div>'
+        +'<div style="font-size:11px;color:var(--dim)">Solicitado: '+it.cantidad+' · Ya recibido: '+recibido+' · <span style="color:#F59E0B;font-weight:700">Pendiente: '+pendiente+' '+(it.unidad||'pza')+'</span></div>'
+        +'</div>'
+        +'<input type="checkbox" id="recep-inc-'+i+'" checked style="width:20px;height:20px;cursor:pointer">'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:8px">'
+        +'<div style="flex:2"><div style="font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;margin-bottom:4px">Cant. que llega</div>'
+        +'<input class="form-input" type="number" id="recep-cant-'+i+'" value="'+pendiente+'" min="0" step="any"></div>'
+        +'<div style="flex:1;display:flex;align-items:flex-end;padding-bottom:4px;font-size:13px;font-weight:700;color:var(--dim)">'+(it.unidad||'pza')+'</div>'
+        +'</div>'
+        +'<input type="hidden" id="recep-nom-'+i+'" value="'+nom+'">'
+        +'<input type="hidden" id="recep-unidad-'+i+'" value="'+(it.unidad||'pza')+'"></div>';
+    }).join('');
+    if(!itemsHtml.trim()) { showToast('Todos los materiales ya fueron recibidos'); return; }
+  }
+
+  // Build nombres datalist
+  var nombres = getNombresRecibio();
+  var datalist = '<datalist id="recibio-list">'+nombres.map(function(n){ return '<option value="'+n+'">'; }).join('')+'</datalist>';
+
+  document.getElementById('recep-items-wrap').innerHTML = datalist + itemsHtml;
+  document.getElementById('recep-recibio').value = currentUser.nombre||'';
+  document.getElementById('recep-ubicacion').value = 'Almacén central';
+  document.getElementById('recep-factura').value = '';
+  document.getElementById('recep-parcial').checked = false;
+  document.getElementById('recep-req-id').value = reqId;
+  openSheet('recep');
+}
+
+async function saveRecepcion() {
+  var reqId = document.getElementById('recep-req-id').value;
+  var recibio = document.getElementById('recep-recibio').value.trim();
+  var ubicacion = document.getElementById('recep-ubicacion').value;
+  var factura = document.getElementById('recep-factura').value.trim();
+  var parcial = document.getElementById('recep-parcial').checked;
+  if(!recibio){ showToast('Indica quién recibe',true); return; }
+
+  var btn = document.getElementById('recep-save-btn');
+  btn.textContent='Guardando...'; btn.disabled=true;
+
   try {
-    await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'recibida'});
-    showToast('✅ Recepción confirmada');
-    closeSheet('detalle');
+    var fecha = new Date().toISOString().slice(0,10);
+    // Save each checked item
+    for(var i=0;i<20;i++){
+      var inc = document.getElementById('recep-inc-'+i);
+      var nom = document.getElementById('recep-nom-'+i);
+      var cant = document.getElementById('recep-cant-'+i);
+      var unidad = document.getElementById('recep-unidad-'+i);
+      if(!inc||!nom) break;
+      if(inc.checked && parseFloat(cant.value)>0){
+        await db('POST','recepciones',{
+          requisicion_id:reqId,
+          nombre_material:nom.value,
+          cantidad_recibida:parseFloat(cant.value),
+          recibio:recibio,
+          ubicacion:ubicacion,
+          factura:factura||null,
+          fecha:fecha
+        });
+      }
+    }
+    // Update req status
+    if(!parcial) await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'recibida'});
+    saveNombreRecibio(recibio);
+    showToast('✅ Recepción registrada');
+    closeSheet('recep');
     await loadData(); renderContent();
-  } catch(e){ showToast('Error',true); }
+  } catch(e){ showToast('Error: '+e.message,true); }
+  btn.textContent='Confirmar recepción'; btn.disabled=false;
 }
 
 // ── EDITAR REQUISICIÓN ────────────────────────────────
@@ -1114,6 +1218,40 @@ document.getElementById('login-view').style.display='flex';
     <div id="confirm-del-msg" style="font-size:14px;color:var(--dim);margin-bottom:20px">¿Estás seguro?</div>
     <button class="btn-primary" id="confirm-del-btn" style="background:#EF4444;margin-bottom:10px" onclick="doEliminarReq()">Sí, eliminar</button>
     <button class="btn-secondary" onclick="closeSheet('confirm-del')">Cancelar</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- SHEET: Recepción -->
+<div class="sheet-overlay" id="sheet-recep">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📦 Recepción de Material</div>
+    <input type="hidden" id="recep-req-id">
+    <div class="card-label" style="margin-bottom:10px">MATERIALES PENDIENTES DE RECIBIR</div>
+    <div id="recep-items-wrap" style="margin-bottom:12px"></div>
+    <div class="form-group">
+      <label class="form-label">Recibió *</label>
+      <input class="form-input" id="recep-recibio" type="text" placeholder="Nombre de quien recibe" list="recibio-list" autocomplete="off">
+    </div>
+    <label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:13px;color:var(--text)">
+      <input type="checkbox" id="recep-parcial" style="width:18px;height:18px">
+      Entrega parcial (quedan materiales pendientes)
+    </label>
+    <div class="form-group">
+      <label class="form-label">Ubicación</label>
+      <select class="form-input" id="recep-ubicacion">
+        <option>Almacén central</option>
+        <option>Directo en obra</option>
+        <option>Taller</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">No. Factura / Remisión</label>
+      <input class="form-input" id="recep-factura" type="text" placeholder="Ej. FAC-00123 o REM-456">
+    </div>
+    <button class="btn-primary" id="recep-save-btn" onclick="saveRecepcion()" style="margin-bottom:10px">Confirmar recepción</button>
+    <button class="btn-secondary" onclick="closeSheet('recep')">Cancelar</button>
     <div style="height:20px"></div>
   </div>
 </div>
