@@ -540,10 +540,12 @@ async function verDetalle(reqId) {
   }
   if(isCompras && est==='autorizada') {
     html += '<button class="btn-primary" style="margin-bottom:8px" onclick="marcarComprada(\''+reqId+'\')">🛒 Marcar como comprada</button>';
+    html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="confirmarRecepcion(\''+reqId+'\')">📦 Registrar recepción</button>';
   }
 
-  if(est==='comprada' && (currentUser.tipo==='trabajador'||(r.solicitante||'').toLowerCase()===(currentUser.nombre||'').toLowerCase())) {
-    html += '<button class="btn-primary" onclick="confirmarRecepcion(\''+reqId+'\')">✅ Confirmar recepción</button>';
+  if(est==='comprada') {
+    var puedeRecibir = isCompras || isDir || currentUser.tipo==='trabajador' || (r.solicitante||'').toLowerCase()===(currentUser.nombre||'').toLowerCase();
+    if(puedeRecibir) html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="confirmarRecepcion(\''+reqId+'\')">📦 Registrar recepción</button>';
   }
   // Show delete button for admin or own pending requisition
   var esMia = (r.solicitante||'').toLowerCase()===(currentUser.nombre||'').toLowerCase();
