@@ -10,7 +10,6 @@
 <meta name="theme-color" content="#0D1117">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#0A1628">
 <title>Requisiciones — Procepal</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -77,13 +76,6 @@ textarea.form-input{resize:none;min-height:80px}
 .item-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
 .item-row:last-child{border-bottom:none}
 
-/* STATUS COLORS */
-.s-pendiente{background:#F0A50022;color:#F0A500}
-.s-cotizada{background:#3B9EBF22;color:#3B9EBF}
-.s-autorizada{background:#5BC4C022;color:#5BC4C0}
-.s-rechazada{background:#EF444422;color:#EF4444}
-.s-comprada{background:#A78BFA22;color:#A78BFA}
-.s-recibida{background:#5BC4C022;color:#5BC4C0}
 
 .empty{text-align:center;padding:48px 16px;color:var(--dim)}
 .empty-icon{font-size:40px;margin-bottom:12px}
@@ -183,7 +175,10 @@ button{-webkit-user-select:none;user-select:none}
       <div class="top-bar-title">Requisiciones</div>
       <div class="top-bar-user" id="top-user">—</div>
     </div>
-    <button onclick="logout()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--dim);cursor:pointer;font-family:Barlow,sans-serif">Salir</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="refresh-btn" onclick="refreshData()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 11px;font-size:18px;color:var(--accent);cursor:pointer;line-height:1" title="Actualizar">🔄</button>
+      <button onclick="logout()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--dim);cursor:pointer;font-family:Barlow,sans-serif">Salir</button>
+    </div>
   </div>
   <div class="tabs" id="tabs-bar">
     <button class="tab-btn active" onclick="setTab('mis')" id="tab-mis">📋 Mis requisiciones</button>
@@ -209,11 +204,11 @@ button{-webkit-user-select:none;user-select:none}
       <input class="form-input" id="rq-solicitante" type="text" placeholder="Tu nombre" readonly style="opacity:0.7;cursor:not-allowed;background:var(--surface)">
     </div>
     <div class="form-group">
-      <label class="form-label">Urgencia</label>
+      <label class="form-label">Prioridad</label>
       <select class="form-input" id="rq-urgencia">
-        <option value="normal">Normal</option>
-        <option value="urgente">🔴 Urgente</option>
-        <option value="muy_urgente">🚨 Muy urgente</option>
+        <option value="baja">🟢 Baja</option>
+        <option value="media" selected>🟠 Media</option>
+        <option value="alta">🔴 Alta</option>
       </select>
     </div>
     <div class="form-group">
@@ -297,6 +292,12 @@ function showToast(msg, err) {
 var pin = '', currentUser = null, obrasData = [], reqData = [], curTab = 'mis', materialesFrecuentes = [];
 var rqItems = []; // items in new req form
 
+// ── UTILS ─────────────────────────────────────────────
+function escHtml(str) {
+  if(!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // ── PIN ───────────────────────────────────────────────
 function pinPress(d) {
   if(pin.length >= 4) return;
@@ -352,6 +353,27 @@ function logout() {
   document.getElementById('login-view').style.display='flex';
 }
 
+async function refreshData() {
+  var btn = document.getElementById('refresh-btn');
+  if(!btn || btn.dataset.loading) return;
+  btn.dataset.loading = '1';
+  btn.style.transition = 'transform .6s linear';
+  btn.style.transform = 'rotate(360deg)';
+  try {
+    await loadData();
+    try { materialesFrecuentes = await db('GET','materiales_frecuentes?order=usos.desc,nombre.asc') || []; } catch(e){}
+    renderContent();
+    showToast('✅ Actualizado');
+  } catch(e) {
+    showToast('Error al actualizar', true);
+  }
+  setTimeout(function(){
+    btn.style.transition = 'none';
+    btn.style.transform = 'rotate(0deg)';
+    setTimeout(function(){ btn.style.transition = ''; delete btn.dataset.loading; }, 50);
+  }, 650);
+}
+
 // ── MAIN ──────────────────────────────────────────────
 function mostrarMain() {
   document.getElementById('login-view').style.display='none';
@@ -397,7 +419,7 @@ function _filtrarMisReqs(all) {
   var nombre = (currentUser.nombre||'').toLowerCase().trim();
   return all.filter(function(r){
     // The table uses a plain text 'solicitante' field
-    var sol = (r.solicitante||r.solicitante||r.solicitante_nombre||'').toLowerCase().trim();
+    var sol = (r.solicitante||r.solicitante_nombre||'').toLowerCase().trim();
     return sol === nombre;
   });
 }
@@ -412,10 +434,8 @@ function renderContent() {
   if(curTab==='mis') {
     var isAdminR = currentUser.rol==='admin'||currentUser.rol==='director';
     var isComprasR = currentUser.rol==='compras';
-    // For regular users: double-filter even if loadData already filtered (safety net)
-    reqs = (isAdminR||isComprasR) ? [] : _filtrarMisReqs(reqData);
-    // Admin/compras use "Todas" tab — "Mis" shows only their own submissions
-    if(isAdminR||isComprasR) reqs = _filtrarMisReqs(reqData);
+    // Todos los roles ven solo sus propias requisiciones en "Mis requisiciones"
+    reqs = _filtrarMisReqs(reqData);
     var btnNueva = '<button class="btn-primary" onclick="abrirNueva()" style="margin-bottom:16px">+ Nueva requisición</button>';
     el.innerHTML = btnNueva + renderReqs(reqs, 'mis');
   } else if(curTab==='todas') {
@@ -435,10 +455,12 @@ function renderReqs(reqs, mode) {
       (mode==='mis'?'Toca "+ Nueva requisición" para solicitar materiales':'No hay requisiciones en este estado')+
     '</div></div>';
   }
-  var urgColors = {urgente:'#F0A500',muy_urgente:'#EF4444'};
+  var urgColors = {baja:'#10B981',media:'#F0A500',alta:'#EF4444'};
   return reqs.map(function(r){
     var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
-    var urg = r.urgencia && r.urgencia!=='normal' ? '<span style="color:'+urgColors[r.urgencia]+';font-size:11px;font-weight:700"> '+( r.urgencia==='urgente'?'🔴 URGENTE':'🚨 MUY URGENTE')+'</span>' : '';
+    var _urgLabel = {baja:'🟢 Baja',media:'🟠 Media',alta:'🔴 Alta'};
+    var _urgPri = r.urgencia||'media';
+    var urg = '<span style="color:'+( urgColors[_urgPri]||'#F0A500')+';font-size:11px;font-weight:700"> '+(_urgLabel[_urgPri]||'🟠 Media')+'</span>';
     var tipoBadge = (r.tipo||'campo')==='taller'
       ? '<span style="font-size:10px;font-weight:700;color:#A78BFA;background:#A78BFA22;border:1px solid #A78BFA44;border-radius:10px;padding:2px 8px;display:inline-block;margin-top:3px">🔧 Taller</span>'
       : '<span style="font-size:10px;font-weight:700;color:#5BC4C0;background:#5BC4C022;border:1px solid #5BC4C044;border-radius:10px;padding:2px 8px;display:inline-block;margin-top:3px">🏗 Campo</span>';
@@ -450,7 +472,7 @@ function renderReqs(reqs, mode) {
       +'</div>'
       +'<div style="text-align:right">'+reqBadge(r.estado)+urg+tipoBadge+'</div>'
       +'</div>'
-      +(r.notas?'<div style="font-size:12px;color:var(--dim);margin-top:4px">'+r.notas+'</div>':'')
+      +(r.notas?'<div style="font-size:12px;color:var(--dim);margin-top:4px">'+escHtml(r.notas)+'</div>':'')
       +'</div>';
   }).join('');
 }
@@ -492,18 +514,20 @@ async function verDetalle(reqId) {
   var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
     +'<div><div style="font-size:20px;font-weight:800">'+fmtFolio(r)+'</div>'
     +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
-    +'<div class="item-sub">'+r.solicitante||r.solicitante_nombre+' · '+fmtDate(r.created_at)+'</div></div>'
+    +'<div class="item-sub">'+(r.solicitante||r.solicitante_nombre||'—')+' · '+fmtDate(r.created_at)+'</div></div>'
     +reqBadge(r.estado)
     +'</div>';
 
-  if(r.urgencia && r.urgencia!=='normal')
-    html += '<div style="background:#EF444415;border:1px solid #EF444433;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;font-weight:700;color:#EF4444">'+(r.urgencia==='urgente'?'🔴 URGENTE':'🚨 MUY URGENTE')+'</div>';
+  var _priColors = {baja:'#10B981',media:'#F0A500',alta:'#EF4444'};
+  var _priLabels = {baja:'🟢 Prioridad Baja',media:'🟠 Prioridad Media',alta:'🔴 Prioridad Alta'};
+  var _priKey = (r.urgencia||'media');
+  html += '<div style="background:'+(_priColors[_priKey]||'#F0A500')+'15;border:1px solid '+(_priColors[_priKey]||'#F0A500')+'33;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;font-weight:700;color:'+(_priColors[_priKey]||'#F0A500')+'">'+(_priLabels[_priKey]||'🟠 Prioridad Media')+'</div>';
 
   if(r.fecha_requerida)
     html += '<div class="item-sub" style="margin-bottom:12px">📅 Requerido para: <b>'+fmtDate(r.fecha_requerida)+'</b></div>';
 
   if(r.notas)
-    html += '<div class="card" style="margin-bottom:12px"><div class="card-label">NOTAS</div><div style="font-size:13px">'+r.notas+'</div></div>';
+    html += '<div class="card" style="margin-bottom:12px"><div class="card-label">NOTAS</div><div style="font-size:13px">'+escHtml(r.notas)+'</div></div>';
 
   // Items
   html += '<div class="card-label">MATERIALES SOLICITADOS</div>';
@@ -570,7 +594,7 @@ function abrirNueva() {
     : obrasData;
   var sel = document.getElementById('rq-obra');
   sel.innerHTML = misObras.map(function(o){ return '<option value="'+o.id+'">'+o.nombre+'</option>'; }).join('');
-  document.getElementById('rq-urgencia').value='normal';
+  document.getElementById('rq-urgencia').value='media';
   document.getElementById('rq-fecha').value='';
   document.getElementById('rq-notas').value='';
   // Auto-fill solicitante
@@ -597,10 +621,10 @@ function renderItemsForm() {
       +'<button onclick="eliminarItem('+i+')" style="border:none;background:none;color:#EF4444;font-size:14px;cursor:pointer">🗑</button>'
       +'</div>'
       +'<div class="autocomplete-wrap" style="margin-bottom:8px">'
-      +'<input class="form-input" placeholder="Descripción del material *" value="'+it.descripcion+'" id="mat-input-'+i+'" oninput="rqItems['+i+'].descripcion=this.value;filtrarMat('+i+')" autocomplete="off">'
+      +'<input class="form-input" placeholder="Descripción del material *" value="'+escHtml(it.descripcion)+'" id="mat-input-'+i+'" oninput="rqItems['+i+'].descripcion=this.value;filtrarMat('+i+')" autocomplete="off">'
       +'<div class="autocomplete-list" id="mat-list-'+i+'" style="display:none"></div>'
       +'</div>'
-      +'<input class="form-input" placeholder="Especificaciones (opcional)" value="'+it.especificaciones+'" oninput="rqItems['+i+'].especificaciones=this.value" style="margin-bottom:8px">'
+      +'<input class="form-input" placeholder="Especificaciones (opcional)" value="'+escHtml(it.especificaciones)+'" oninput="rqItems['+i+'].especificaciones=this.value" style="margin-bottom:8px">'
       +'<div style="display:flex;gap:8px">'
       +'<input class="form-input" type="number" placeholder="Cant." value="'+it.cantidad+'" oninput="rqItems['+i+'].cantidad=this.value" style="flex:1">'
       +'<select class="form-input" onchange="rqItems['+i+'].unidad=this.value" style="flex:1">'
@@ -627,13 +651,17 @@ async function saveRequisicion() {
   var validos = rqItems.filter(function(it){ return it.descripcion.trim(); });
   if(!validos.length) { showToast('Escribe la descripción del material',true); return; }
   var btn = document.getElementById('rq-save-btn');
+  if(btn.disabled) return; // evitar doble envío
   btn.textContent='Enviando...'; btn.disabled=true;
   try {
     var anio = new Date().getFullYear();
     var todasReqs = [];
-    try { todasReqs = await db('GET','requisiciones?order=created_at.asc') || []; } catch(e){}
+    try { todasReqs = await db('GET','requisiciones?select=folio&order=created_at.asc') || []; } catch(e){}
     var desteAnio = todasReqs.filter(function(x){ return x.folio && x.folio.toString().startsWith('REQ-'+anio+'-'); });
-    var folio = 'REQ-'+anio+'-'+String(desteAnio.length+1).padStart(3,'0');
+    // Añade sufijo aleatorio para evitar duplicados en condición de carrera simultánea
+    var seq = String(desteAnio.length+1).padStart(3,'0');
+    var rnd = String(Math.floor(Math.random()*900)+100); // 100-999
+    var folio = 'REQ-'+anio+'-'+seq+'-'+rnd;
     var payload = {
       folio: folio,
       obra_id: document.getElementById('rq-obra').value,
@@ -660,7 +688,7 @@ async function saveRequisicion() {
     var msg = '📋 *Nueva Requisición '+folio+'*\n'
       +'🏗 Obra: '+(obra?obra.nombre:'—')+'\n'
       +'👤 Solicitante: '+currentUser.nombre+'\n'
-      +(payload.urgencia!=='normal'?'🔴 *'+payload.urgencia.toUpperCase()+'*\n':'')
+      +(payload.urgencia==='alta'?'🔴 *PRIORIDAD ALTA*\n':payload.urgencia==='baja'?'🟢 Prioridad baja\n':'🟠 Prioridad media\n')
       +'📦 Materiales:\n'
       +validos.map(function(it,i){ return (i+1)+'. '+it.descripcion.trim()+' - '+it.cantidad+' '+(it.unidad||'pza'); }).join('\n');
     var waUrl = 'https://wa.me/524498043514?text='+encodeURIComponent(msg);
@@ -868,11 +896,11 @@ async function doEliminarReq() {
     closeSheet('detalle');
     await loadData();
     renderContent();
-  } catch(e){ showToast('Error al eliminar',true); }
+  } catch(e){ showToast('Error al eliminar',true); btn.textContent='Sí, eliminar'; btn.disabled=false; }
 }
 
 async function autorizarReq(reqId) {
-  if(!confirm('¿Autorizar esta compra?')) return;
+  if(!confirm('¿Autorizar esta compra?')) return;  // confirm OK aqui — se reemplaza en mejora futura
   try {
     await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'autorizada'});
     showToast('✅ Compra autorizada');
@@ -903,6 +931,7 @@ async function marcarComprada(reqId) {
 
 // ── RECEPCIÓN ────────────────────────────────────────
 var _recepReqId = null;
+var _recepFotos = []; // base64 fotos de evidencia
 
 function getNombresRecibio() {
   try { return JSON.parse(localStorage.getItem('nombres_recibio')||'[]'); } catch(e){ return []; }
@@ -969,6 +998,10 @@ async function confirmarRecepcion(reqId) {
   document.getElementById('recep-ubicacion').value = 'Almacén central';
   document.getElementById('recep-factura').value = '';
   document.getElementById('recep-parcial').checked = false;
+  _recepFotos = [];
+  document.getElementById('recep-fotos-wrap').innerHTML = '';
+  document.getElementById('recep-foto-camara').value = '';
+  document.getElementById('recep-foto-galeria').value = '';
   document.getElementById('recep-req-id').value = reqId;
   openSheet('recep');
 }
@@ -986,8 +1019,10 @@ async function saveRecepcion() {
 
   try {
     var fecha = new Date().toISOString().slice(0,10);
+    // Contamos los items reales renderizados en lugar de hardcodear 20
+    var totalItems = document.querySelectorAll('[id^="recep-inc-"]').length;
     // Save each checked item
-    for(var i=0;i<20;i++){
+    for(var i=0;i<totalItems;i++){
       var inc = document.getElementById('recep-inc-'+i);
       var nom = document.getElementById('recep-nom-'+i);
       var cant = document.getElementById('recep-cant-'+i);
@@ -1008,11 +1043,59 @@ async function saveRecepcion() {
     // Update req status
     if(!parcial) await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'recibida'});
     saveNombreRecibio(recibio);
+    // Guardar fotos asociadas a esta recepción en localStorage
+    if(_recepFotos.length) {
+      var stored = {};
+      try { stored = JSON.parse(localStorage.getItem('recep_fotos')||'{}'); } catch(e){}
+      stored[reqId] = (stored[reqId]||[]).concat(_recepFotos);
+      // Limitar a 5 fotos por recepción para no saturar localStorage
+      if(stored[reqId].length > 5) stored[reqId] = stored[reqId].slice(-5);
+      try { localStorage.setItem('recep_fotos', JSON.stringify(stored)); } catch(e){
+        showToast('Fotos no guardadas (espacio insuficiente)',true);
+      }
+      _recepFotos = [];
+    }
     showToast('✅ Recepción registrada');
     closeSheet('recep');
     await loadData(); renderContent();
   } catch(e){ showToast('Error: '+e.message,true); }
   btn.textContent='Confirmar recepción'; btn.disabled=false;
+}
+
+// ── FOTOS RECEPCIÓN ──────────────────────────────────
+function agregarFotoRecep(input) {
+  var files = input.files;
+  if(!files || !files.length) return;
+  var file = files[0];
+  if(!file.type.startsWith('image/')) { showToast('Solo se permiten imágenes',true); return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var b64 = e.target.result;
+    _recepFotos.push(b64);
+    renderFotosRecep();
+    // Reset input para permitir agregar otra foto
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderFotosRecep() {
+  var wrap = document.getElementById('recep-fotos-wrap');
+  if(!wrap) return;
+  wrap.innerHTML = _recepFotos.map(function(b64, i){
+    return '<div style="position:relative;width:72px;height:72px;flex-shrink:0">'
+      +'<img src="'+b64+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">'
+      +'<button onclick="_recepFotos.splice('+i+',1);renderFotosRecep()" '
+      +'style="position:absolute;top:-6px;right:-6px;background:#EF4444;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>'
+      +'</div>';
+  }).join('');
+}
+
+function getFotosRecep(reqId) {
+  try {
+    var stored = JSON.parse(localStorage.getItem('recep_fotos')||'{}');
+    return stored[reqId] || [];
+  } catch(e){ return []; }
 }
 
 // ── EDITAR REQUISICIÓN ────────────────────────────────
@@ -1037,7 +1120,7 @@ async function abrirEditar(reqId) {
   sel.innerHTML = misObras.map(function(o){ return '<option value="'+o.id+'"'+(o.id===r.obra_id?' selected':'')+'>'+o.nombre+'</option>'; }).join('');
 
   document.getElementById('edit-solicitante').value = r.solicitante||currentUser.nombre;
-  document.getElementById('edit-urgencia').value = r.urgencia||'normal';
+  document.getElementById('edit-urgencia').value = r.urgencia||'media';
   document.getElementById('edit-fecha').value = r.fecha_requerida||'';
   document.getElementById('edit-notas').value = r.notas||'';
 
@@ -1059,7 +1142,7 @@ function renderEditItems() {
       +'<span style="font-size:12px;font-weight:700;color:var(--dim)">MATERIAL '+(i+1)+'</span>'
       +'<button onclick="eliminarEditItem('+i+')" style="border:none;background:none;color:#EF4444;font-size:14px;cursor:pointer">🗑</button>'
       +'</div>'
-      +'<input class="form-input" placeholder="Descripción *" value="'+it.descripcion+'" oninput="_editItems['+i+'].descripcion=this.value" style="margin-bottom:8px">'
+      +'<input class="form-input" placeholder="Descripción *" value="'+escHtml(it.descripcion)+'" oninput="_editItems['+i+'].descripcion=this.value" style="margin-bottom:8px">'
       +'<div style="display:flex;gap:8px">'
       +'<input class="form-input" type="number" placeholder="Cant." value="'+it.cantidad+'" oninput="_editItems['+i+'].cantidad=this.value" style="flex:1">'
       +'<select class="form-input" onchange="_editItems['+i+'].unidad=this.value" style="flex:1">'
@@ -1156,8 +1239,10 @@ async function generarPDF(reqId) {
       +'<td style="padding:7px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;color:#6B7280">'+fmtDate(rec.fecha||rec.created_at)+'</td></tr>';
   }).join('') : '<tr><td colspan="6" style="padding:14px;color:#9CA3AF;text-align:center">Sin recepciones</td></tr>';
 
-  var urgHtml = (r.urgencia&&r.urgencia!=='normal')
-    ? '<div style="background:#EF444415;border:1px solid #EF444433;border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:12px;font-weight:700;color:#EF4444">'+(r.urgencia==='urgente'?'🔴 URGENTE':'🚨 MUY URGENTE')+'</div>' : '';
+  var _pdfPriColors = {baja:'#10B981',media:'#F0A500',alta:'#EF4444'};
+  var _pdfPriLabels = {baja:'🟢 Prioridad Baja',media:'🟠 Prioridad Media',alta:'🔴 Prioridad Alta'};
+  var _pdfPri = r.urgencia||'media';
+  var urgHtml = '<div style="background:'+(_pdfPriColors[_pdfPri]||'#F0A500')+'15;border:1px solid '+(_pdfPriColors[_pdfPri]||'#F0A500')+'33;border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:12px;font-weight:700;color:'+(_pdfPriColors[_pdfPri]||'#F0A500')+'">'+(_pdfPriLabels[_pdfPri]||'🟠 Prioridad Media')+'</div>';
 
   document.getElementById('pdf-doc').innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:18px;border-bottom:3px solid #0D1117">'
@@ -1203,7 +1288,24 @@ async function generarPDF(reqId) {
     +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#0D9488;text-transform:uppercase">Factura/Rem.</th>'
     +'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase">Fecha</th>'
     +'</tr></thead><tbody>'+recepRows+'</tbody></table></div>'
-    +'<div style="border-top:1px solid #E5E7EB;padding-top:14px;display:flex;justify-content:space-between">'
+    // Evidencias fotográficas
+  var fotos = getFotosRecep(reqId);
+  var fotosHtml = '';
+  if(fotos.length) {
+    fotosHtml = '<div style="margin-bottom:20px">'
+      +'<div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:10px">Evidencias Fotográficas</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:10px">'
+      +fotos.map(function(b64, i){
+        return '<div style="text-align:center">'
+          +'<img src="'+b64+'" style="width:160px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #E5E7EB;display:block">'
+          +'<div style="font-size:9px;color:#9CA3AF;margin-top:3px">Foto '+(i+1)+'</div>'
+          +'</div>';
+      }).join('')
+      +'</div></div>';
+  }
+
+  +''+fotosHtml
+  +'<div style="border-top:1px solid #E5E7EB;padding-top:14px;display:flex;justify-content:space-between">'
     +'<div style="font-size:10px;color:#9CA3AF">PROCEPAL — Sistema de Requisiciones · '+folio+'</div>'
     +'<div style="font-size:10px;color:#9CA3AF">'+now+'</div></div>';
 
@@ -1221,7 +1323,7 @@ document.getElementById('login-view').style.display='flex';
 // ── PWA SERVICE WORKER ───────────────────────────────
 if('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    navigator.serviceWorker.register('/requisiciones-procepal/sw.js').then(function(reg) {
       // Detectar actualización disponible
       reg.addEventListener('updatefound', function() {
         var newWorker = reg.installing;
@@ -1276,6 +1378,20 @@ if('serviceWorker' in navigator) {
       <label class="form-label">No. Factura / Remisión</label>
       <input class="form-input" id="recep-factura" type="text" placeholder="Ej. FAC-00123 o REM-456">
     </div>
+    <div class="form-group">
+      <label class="form-label">📷 Foto de evidencia (opcional)</label>
+      <div id="recep-fotos-wrap" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label style="display:flex;align-items:center;justify-content:center;gap:6px;background:var(--surface);border:1px dashed var(--border);border-radius:10px;padding:12px;cursor:pointer;font-size:13px;color:var(--accent);font-weight:700;min-height:48px;text-align:center">
+          📷 Tomar foto
+          <input type="file" id="recep-foto-camara" accept="image/*" capture="environment" style="display:none" onchange="agregarFotoRecep(this)">
+        </label>
+        <label style="display:flex;align-items:center;justify-content:center;gap:6px;background:var(--surface);border:1px dashed var(--border);border-radius:10px;padding:12px;cursor:pointer;font-size:13px;color:var(--muted);font-weight:700;min-height:48px;text-align:center">
+          🖼 Galería
+          <input type="file" id="recep-foto-galeria" accept="image/*" style="display:none" onchange="agregarFotoRecep(this)">
+        </label>
+      </div>
+    </div>
     <button class="btn-primary" id="recep-save-btn" onclick="saveRecepcion()" style="margin-bottom:10px">Confirmar recepción</button>
     <button class="btn-secondary" onclick="closeSheet('recep')">Cancelar</button>
     <div style="height:20px"></div>
@@ -1296,11 +1412,11 @@ if('serviceWorker' in navigator) {
       <input class="form-input" id="edit-solicitante" type="text" readonly style="opacity:0.7;cursor:not-allowed;background:var(--surface)">
     </div>
     <div class="form-group">
-      <label class="form-label">Urgencia</label>
+      <label class="form-label">Prioridad</label>
       <select class="form-input" id="edit-urgencia">
-        <option value="normal">Normal</option>
-        <option value="urgente">🔴 Urgente</option>
-        <option value="muy_urgente">🚨 Muy urgente</option>
+        <option value="baja">🟢 Baja</option>
+        <option value="media" selected>🟠 Media</option>
+        <option value="alta">🔴 Alta</option>
       </select>
     </div>
     <div class="form-group">
