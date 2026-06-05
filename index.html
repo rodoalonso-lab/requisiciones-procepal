@@ -274,12 +274,19 @@ button{-webkit-user-select:none;user-select:none}
 const SUPABASE_URL = 'https://pviiuaukqvrdyttwulcw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2aWl1YXVrcXZyZHl0dHd1bGN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0OTU0MzMsImV4cCI6MjA5NTA3MTQzM30.mKJ2z17zBkz0zc18itgEnJAk8ZuQ6nT3PlAvXyYRip8';
 
-async function db(method, path, body) {
+async function db(method, path, body, retries = 2) {
   const h = {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
-  const res = await fetch(SUPABASE_URL+'/rest/v1/'+path, {method, headers:h, body:body?JSON.stringify(body):undefined});
-  const text = await res.text();
-  if(!res.ok) throw new Error(text);
-  return text ? JSON.parse(text) : null;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(SUPABASE_URL+'/rest/v1/'+path, {method, headers:h, body:body?JSON.stringify(body):undefined});
+      const text = await res.text();
+      if(!res.ok) throw new Error(text);
+      return text ? JSON.parse(text) : null;
+    } catch(e) {
+      if (i === retries) throw new Error('Verifique su conexión a internet.');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
 }
 
 function showToast(msg, err) {
@@ -660,8 +667,8 @@ async function saveRequisicion() {
     var desteAnio = todasReqs.filter(function(x){ return x.folio && x.folio.toString().startsWith('REQ-'+anio+'-'); });
     // Añade sufijo aleatorio para evitar duplicados en condición de carrera simultánea
     var seq = String(desteAnio.length+1).padStart(3,'0');
-    var rnd = String(Math.floor(Math.random()*900)+100); // 100-999
-    var folio = 'REQ-'+anio+'-'+seq+'-'+rnd;
+    var tsSuffix = String(Date.now()).slice(-4);
+    var folio = 'REQ-'+anio+'-'+seq+'-'+tsSuffix;
     var payload = {
       folio: folio,
       obra_id: document.getElementById('rq-obra').value,
@@ -836,29 +843,43 @@ document.addEventListener('click', function(e){
 
 
 
+function _safeNum(val, fallback) {
+  var n = parseFloat(val);
+  return (isFinite(n) && !isNaN(n)) ? n : (fallback || 0);
+}
+
 function calcCotTotal() {
   var totalBruto=0, totalDesc=0, totalSinIva=0, totalIva=0, totalConIva=0;
   document.querySelectorAll('.fc-precio-unit').forEach(function(inp){
-    var precio=parseFloat(inp.value)||0;
-    var cant=parseFloat(inp.dataset.cant)||1;
-    var idx=inp.dataset.idx;
-    var descPct=parseFloat((document.querySelector('.fc-desc-pct[data-idx="'+idx+'"]')||{}).value)||0;
-    var ivaSel=document.querySelector('.fc-iva-sel[data-idx="'+idx+'"]');
-    var ivaPct=ivaSel?parseFloat(ivaSel.value)||0:16;
+    var precio = _safeNum(inp.value);
+    var cant   = _safeNum(inp.dataset.cant, 1);
+    var idx    = inp.dataset.idx;
+    var descEl = document.querySelector('.fc-desc-pct[data-idx="'+idx+'"]');
+    var descPct= descEl ? Math.min(100, Math.max(0, _safeNum(descEl.value))) : 0;
+    var ivaSel = document.querySelector('.fc-iva-sel[data-idx="'+idx+'"]');
+    var ivaPct = ivaSel ? _safeNum(ivaSel.value, 16) : 16;
+
     var bruto=precio*cant;
     var descMonto=bruto*(descPct/100);
     var sub=bruto-descMonto;
     var iva=sub*(ivaPct/100);
     var total=sub+iva;
-    totalBruto+=bruto; totalDesc+=descMonto; totalSinIva+=sub; totalIva+=iva; totalConIva+=total;
-    var descEl=document.getElementById('cot-desc-'+idx);
-    var subEl=document.getElementById('cot-sub-'+idx);
-    var ivaEl=document.getElementById('cot-iva-'+idx);
-    if(descEl) descEl.textContent=descMonto>0?'-$'+descMonto.toLocaleString('es-MX',{minimumFractionDigits:2}):'$0';
-    if(subEl) subEl.textContent='$'+sub.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
-    if(ivaEl) ivaEl.textContent='$'+total.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+    if(isFinite(bruto))     totalBruto += bruto;
+    if(isFinite(descMonto)) totalDesc += descMonto;
+    if(isFinite(sub))       totalSinIva += sub;
+    if(isFinite(iva))       totalIva += iva;
+    if(isFinite(total))     totalConIva += total;
+
+    var descDisplay=document.getElementById('cot-desc-'+idx);
+    var subDisplay=document.getElementById('cot-sub-'+idx);
+    var ivaDisplay=document.getElementById('cot-iva-'+idx);
+    if(descDisplay) descDisplay.textContent=descMonto>0?'-$'+descMonto.toLocaleString('es-MX',{minimumFractionDigits:2}):'$0.00';
+    if(subDisplay) subDisplay.textContent='$'+sub.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(ivaDisplay) ivaDisplay.textContent='$'+total.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
   });
-  var fmt2=function(n){ return '$'+n.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+
+  var fmt2=function(n){ return '$'+(isFinite(n)?n:0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   var el=document.getElementById('cot-total-display');
   if(el) el.innerHTML=
     '<div style="font-size:28px;font-weight:800;color:var(--accent)">'+fmt2(totalConIva)+'</div>'
@@ -870,7 +891,7 @@ function calcCotTotal() {
     +'<div style="display:flex;justify-content:space-between;font-weight:800;border-top:1px solid var(--border);padding-top:4px;margin-top:2px"><span>Total c/IVA</span><span style="color:var(--accent)">'+fmt2(totalConIva)+'</span></div>'
     +'</div>';
   var hidden=document.getElementById('cot-monto-hidden');
-  if(hidden) hidden.value=totalConIva;
+  if(hidden) hidden.value=isFinite(totalConIva) ? totalConIva : 0;
 }
 
 function eliminarReq(reqId) {
