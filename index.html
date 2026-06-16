@@ -270,30 +270,10 @@ button{-webkit-user-select:none;user-select:none}
 
 <div class="toast" id="toast"></div>
 
+<!-- Librería compartida Procepal: SUPABASE_URL/KEY, db(), getToken(), fmt(), fmtDate(), showToast(), uploadStorage() -->
+<script src="procepal-lib.js"></script>
 <script>
-const SUPABASE_URL = 'https://pviiuaukqvrdyttwulcw.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2aWl1YXVrcXZyZHl0dHd1bGN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0OTU0MzMsImV4cCI6MjA5NTA3MTQzM30.mKJ2z17zBkz0zc18itgEnJAk8ZuQ6nT3PlAvXyYRip8';
-
-async function db(method, path, body, retries = 2) {
-  const h = {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const res = await fetch(SUPABASE_URL+'/rest/v1/'+path, {method, headers:h, body:body?JSON.stringify(body):undefined});
-      const text = await res.text();
-      if(!res.ok) throw new Error(text);
-      return text ? JSON.parse(text) : null;
-    } catch(e) {
-      if (i === retries) throw new Error('Verifique su conexión a internet.');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-}
-
-function showToast(msg, err) {
-  var t = document.getElementById('toast');
-  t.textContent = msg; t.className = 'toast show'+(err?' error':'');
-  setTimeout(function(){ t.className='toast'; }, 2800);
-}
+// SUPABASE_URL, SUPABASE_KEY, db(), showToast() → de procepal-lib.js
 
 // ── STATE ──────────────────────────────────────────────
 var pin = '', currentUser = null, obrasData = [], reqData = [], curTab = 'mis', materialesFrecuentes = [];
@@ -336,10 +316,19 @@ async function verificarPin() {
         document.getElementById('login-error').textContent = 'PIN incorrecto';
         pin=''; updateDots(); return;
       }
-      currentUser = {id:trabs[0].id, nombre:trabs[0].nombre, rol:'campo', tipo:'trabajador', obra_id:trabs[0].obra_id, todos_proyectos:trabs[0].todos_proyectos};
+      currentUser = {id:trabs[0].id, nombre:trabs[0].nombre, rol:'campo', tipo:'trabajador', obra_id:trabs[0].obra_id, todos_proyectos:trabs[0].todos_proyectos, permisosModulos:{}};
     } else {
       var p = perfiles[0];
-      currentUser = {id:p.user_id, nombre:p.nombre, rol:p.rol, tipo:'perfil', permisos:p.permisos||{}};
+      // Cargar permisos de módulo desde user_profiles (fuente de verdad del admin)
+      var upMods = {};
+      if(p.user_id) {
+        try {
+          var upData = await db('GET','user_profiles?id=eq.'+p.user_id+'&select=permisos');
+          var upPerms = upData && upData[0] && upData[0].permisos && upData[0].permisos.requisiciones && upData[0].permisos.requisiciones.modulos;
+          if(upPerms && Object.keys(upPerms).length > 0) upMods = upPerms;
+        } catch(eUp){}
+      }
+      currentUser = {id:p.user_id, nombre:p.nombre, rol:p.rol, tipo:'perfil', permisos:p.permisos||{}, permisosModulos:upMods};
     }
     obrasData = await db('GET','obras?order=nombre') || [];
     try{ materialesFrecuentes = await db('GET','materiales_frecuentes?order=usos.desc,nombre.asc') || []; }catch(e){ materialesFrecuentes=[]; }
@@ -388,10 +377,13 @@ function mostrarMain() {
   document.getElementById('top-user').textContent = currentUser.nombre + ' · ' + rolLabel(currentUser.rol);
   var isCompras = currentUser.rol==='compras';
   var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
-  // Tab "Todas" visible para compras y admin/director
-  document.getElementById('tab-todas').style.display = (isCompras||isDir) ? '' : 'none';
-  // Tab "Autorizar" solo para admin/director
-  document.getElementById('tab-autorizar').style.display = isDir ? '' : 'none';
+  var mods = currentUser.permisosModulos || {};
+  var hayMods = Object.keys(mods).length > 0;
+  // Si hay permisos de módulo definidos en admin, usarlos; si no, usar lógica de rol
+  var verTodas     = hayMods ? mods.ver_todas    === true : (isCompras||isDir);
+  var verAutorizar = hayMods ? mods.autorizar    === true : isDir;
+  document.getElementById('tab-todas').style.display    = verTodas     ? '' : 'none';
+  document.getElementById('tab-autorizar').style.display = verAutorizar ? '' : 'none';
   // Rename "Mis requisiciones" tab label based on role
   document.getElementById('tab-mis').textContent = '📋 Mis requisiciones';
   setTab('mis');
@@ -484,13 +476,7 @@ function renderReqs(reqs, mode) {
   }).join('');
 }
 
-function fmtDate(d) {
-  if(!d) return '—';
-  var dt = d.includes('T') ? new Date(d) : new Date(d+'T12:00:00');
-  if(isNaN(dt)) return '—';
-  var meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  return dt.getDate()+' '+meses[dt.getMonth()]+' '+dt.getFullYear();
-}
+// fmtDate → de procepal-lib.js
 
 function fmtFolio(r) {
   if(!r) return '—';
@@ -921,13 +907,26 @@ async function doEliminarReq() {
 }
 
 async function autorizarReq(reqId) {
-  if(!confirm('¿Autorizar esta compra?')) return;  // confirm OK aqui — se reemplaza en mejora futura
+  // Verificar que tenga monto_cotizado antes de autorizar
   try {
-    await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'autorizada'});
+    const reqs = await db('GET', 'requisiciones?id=eq.'+reqId+'&select=monto_cotizado,folio');
+    const r = reqs && reqs[0];
+    if (!r) { showToast('Requisición no encontrada', true); return; }
+    const montoActual = parseFloat(r.monto_cotizado)||0;
+    if (montoActual <= 0) {
+      const montoStr = prompt(`${r.folio}: Ingresa el monto cotizado antes de autorizar ($):`);
+      if (!montoStr) return;
+      const montoNuevo = parseFloat(montoStr);
+      if (!montoNuevo || montoNuevo <= 0) { showToast('Monto inválido', true); return; }
+      await db('PATCH','requisiciones?id=eq.'+reqId, {estado:'autorizada', monto_cotizado: montoNuevo});
+    } else {
+      if (!confirm(`¿Autorizar esta compra por ${fmt(montoActual)}?`)) return;
+      await db('PATCH','requisiciones?id=eq.'+reqId, {estado:'autorizada'});
+    }
     showToast('✅ Compra autorizada');
     closeSheet('detalle');
     await loadData(); renderContent();
-  } catch(e){ showToast('Error',true); }
+  } catch(e){ showToast('Error: '+e.message, true); }
 }
 
 async function rechazarReq(reqId) {
