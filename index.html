@@ -651,10 +651,8 @@ async function saveRequisicion() {
     var todasReqs = [];
     try { todasReqs = await db('GET','requisiciones?select=folio&order=created_at.asc') || []; } catch(e){}
     var desteAnio = todasReqs.filter(function(x){ return x.folio && x.folio.toString().startsWith('REQ-'+anio+'-'); });
-    // Añade sufijo aleatorio para evitar duplicados en condición de carrera simultánea
     var seq = String(desteAnio.length+1).padStart(3,'0');
-    var tsSuffix = String(Date.now()).slice(-4);
-    var folio = 'REQ-'+anio+'-'+seq+'-'+tsSuffix;
+    var folio = 'REQ-'+anio+'-'+seq;
     var payload = {
       folio: folio,
       obra_id: document.getElementById('rq-obra').value,
