@@ -235,6 +235,17 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
       </select>
     </div>
     <div class="form-group">
+      <label class="form-label">Partida presupuestal *</label>
+      <select class="form-input" id="rq-partida">
+        <option value="MATERIAL">📦 Material</option>
+        <option value="MANO_DE_OBRA">👷 Mano de Obra</option>
+        <option value="EQUIPO">🚜 Equipo</option>
+        <option value="SUBCONTRATO">🤝 Subcontrato</option>
+        <option value="INDIRECTO">🏢 Indirecto</option>
+        <option value="OTRO">📎 Otro</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label class="form-label">Fecha requerida</label>
       <input class="form-input" id="rq-fecha" type="date">
     </div>
@@ -492,7 +503,7 @@ function renderReqs(reqs, mode) {
       +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
       +'<div class="item-sub">'+(r.solicitante||r.solicitante_nombre||'—')+(r.fecha_requerida?' · Req: '+fmtDate(r.fecha_requerida):'')+'</div>'
       +'</div>'
-      +'<div style="text-align:right">'+reqBadge(r.estado)+urg+tipoBadge+'</div>'
+      +'<div style="text-align:right">'+reqBadge(r.estado)+urg+tipoBadge+(r.partida?'<span style="font-size:10px;font-weight:700;color:'+({'MATERIAL':'#3B82F6','MANO_DE_OBRA':'#10B981','EQUIPO':'#F59E0B','SUBCONTRATO':'#8B5CF6','INDIRECTO':'#6B7280','OTRO':'#6B7280'})[r.partida]||'#6B7280')+';background:'+({'MATERIAL':'#3B82F6','MANO_DE_OBRA':'#10B981','EQUIPO':'#F59E0B','SUBCONTRATO':'#8B5CF6','INDIRECTO':'#6B7280','OTRO':'#6B7280'})[r.partida]||'#6B7280')+'22;border:1px solid '+({'MATERIAL':'#3B82F6','MANO_DE_OBRA':'#10B981','EQUIPO':'#F59E0B','SUBCONTRATO':'#8B5CF6','INDIRECTO':'#6B7280','OTRO':'#6B7280'})[r.partida]||'#6B7280')+'44;border-radius:10px;padding:2px 8px;display:inline-block;margin-top:3px">'+({'MATERIAL':'📦 Mat','MANO_DE_OBRA':'👷 MOD','EQUIPO':'🚜 Equipo','SUBCONTRATO':'🤝 Sub','INDIRECTO':'🏢 Ind','OTRO':'📎 Otro'})[r.partida]||r.partida)+'</span>':'')+'</div>'
       +'</div>'
       +(r.notas?'<div style="font-size:12px;color:var(--dim);margin-top:4px">'+escHtml(r.notas)+'</div>':'')
       +'</div>';
@@ -684,7 +695,8 @@ async function saveRequisicion() {
       fecha_requerida: document.getElementById('rq-fecha').value||null,
       notas: document.getElementById('rq-notas').value.trim(),
       estado: 'pendiente',
-      tipo: (currentUser.rol==='taller') ? 'taller' : 'campo'
+      tipo: (currentUser.rol==='taller') ? 'taller' : 'campo',
+      partida: document.getElementById('rq-partida').value || 'MATERIAL'
     };
     var rows = await db('POST','requisiciones',payload);
     var reqId = rows[0].id;
@@ -703,6 +715,7 @@ async function saveRequisicion() {
       +'🏗 Obra: '+(obra?obra.nombre:'—')+'\n'
       +'👤 Solicitante: '+currentUser.nombre+'\n'
       +(payload.urgencia==='alta'?'🔴 *PRIORIDAD ALTA*\n':payload.urgencia==='baja'?'🟢 Prioridad baja\n':'🟠 Prioridad media\n')
+      +'🗂 Partida: '+({'MATERIAL':'📦 Material','MANO_DE_OBRA':'👷 Mano de Obra','EQUIPO':'🚜 Equipo','SUBCONTRATO':'🤝 Subcontrato','INDIRECTO':'🏢 Indirecto','OTRO':'📎 Otro'}[payload.partida]||payload.partida)+'\n'
       +'📦 Materiales:\n'
       +validos.map(function(it,i){ return (i+1)+'. '+it.descripcion.trim()+' - '+it.cantidad+' '+(it.unidad||'pza'); }).join('\n');
     var waUrl = 'https://wa.me/524498043514?text='+encodeURIComponent(msg);
