@@ -483,6 +483,8 @@ function renderContent() {
 }
 
 function renderReqs(reqs, mode) {
+  var _pLabel = {MATERIAL:'\U0001F4E6 Mat',MANO_DE_OBRA:'\U0001F477 MOD',EQUIPO:'\U0001F69C Equipo',SUBCONTRATO:'\U0001F91D Sub',INDIRECTO:'\U0001F3E2 Ind',OTRO:'\U0001F4CE Otro'};
+  var _pColor = {MATERIAL:'#3B82F6',MANO_DE_OBRA:'#10B981',EQUIPO:'#F59E0B',SUBCONTRATO:'#8B5CF6',INDIRECTO:'#6B7280',OTRO:'#6B7280'};
   if(!reqs.length) {
     return '<div class="empty"><div class="empty-icon">📋</div><div style="font-weight:700;margin-bottom:6px">Sin requisiciones</div><div class="item-sub">'+
       (mode==='mis'?'Toca "+ Nueva requisición" para solicitar materiales':'No hay requisiciones en este estado')+
@@ -503,7 +505,7 @@ function renderReqs(reqs, mode) {
       +'<div class="item-sub">'+(obra?obra.nombre:'—')+'</div>'
       +'<div class="item-sub">'+(r.solicitante||r.solicitante_nombre||'—')+(r.fecha_requerida?' · Req: '+fmtDate(r.fecha_requerida):'')+'</div>'
       +'</div>'
-      +'<div style="text-align:right">'+reqBadge(r.estado)+urg+tipoBadge+(r.partida?'<span style="font-size:10px;font-weight:700;color:'+({'MATERIAL':'#3B82F6','MANO_DE_OBRA':'#10B981','EQUIPO':'#F59E0B','SUBCONTRATO':'#8B5CF6','INDIRECTO':'#6B7280','OTRO':'#6B7280'})[r.partida]||'#6B7280')+';background:'+({'MATERIAL':'#3B82F6','MANO_DE_OBRA':'#10B981','EQUIPO':'#F59E0B','SUBCONTRATO':'#8B5CF6','INDIRECTO':'#6B7280','OTRO':'#6B7280'})[r.partida]||'#6B7280')+'22;border:1px solid '+({'MATERIAL':'#3B82F6','MANO_DE_OBRA':'#10B981','EQUIPO':'#F59E0B','SUBCONTRATO':'#8B5CF6','INDIRECTO':'#6B7280','OTRO':'#6B7280'})[r.partida]||'#6B7280')+'44;border-radius:10px;padding:2px 8px;display:inline-block;margin-top:3px">'+({'MATERIAL':'📦 Mat','MANO_DE_OBRA':'👷 MOD','EQUIPO':'🚜 Equipo','SUBCONTRATO':'🤝 Sub','INDIRECTO':'🏢 Ind','OTRO':'📎 Otro'})[r.partida]||r.partida)+'</span>':'')+'</div>'
+      +'<div style="text-align:right">'+reqBadge(r.estado)+urg+tipoBadge+(r.partida ? '<span style="font-size:10px;font-weight:700;color:'+(_pColor[r.partida]||'#6B7280')+';background:'+(_pColor[r.partida]||'#6B7280')+'22;border:1px solid '+(_pColor[r.partida]||'#6B7280')+'44;border-radius:10px;padding:2px 8px;display:inline-block;margin-top:3px">'+(_pLabel[r.partida]||r.partida)+'</span>' : '')+'</div>'
       +'</div>'
       +(r.notas?'<div style="font-size:12px;color:var(--dim);margin-top:4px">'+escHtml(r.notas)+'</div>':'')
       +'</div>';
