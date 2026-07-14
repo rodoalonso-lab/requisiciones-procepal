@@ -759,16 +759,7 @@ function renderItemsForm() {
       +'<input class="form-input" placeholder="Especificaciones (opcional)" value="'+escHtml(it.especificaciones)+'" oninput="rqItems['+i+'].especificaciones=this.value" style="margin-bottom:8px">'
       +'<div style="display:flex;gap:8px">'
       +'<input class="form-input" type="number" placeholder="Cant." value="'+it.cantidad+'" oninput="rqItems['+i+'].cantidad=this.value" style="flex:1">'
-      +'<select class="form-input" onchange="rqItems['+i+'].unidad=this.value" style="flex:1">'
-      +'<option '+(it.unidad==='pza'?'selected':'')+'>pza</option>'
-      +'<option '+(it.unidad==='m'?'selected':'')+'>m</option>'
-      +'<option '+(it.unidad==='m2'?'selected':'')+'>m2</option>'
-      +'<option '+(it.unidad==='kg'?'selected':'')+'>kg</option>'
-      +'<option '+(it.unidad==='lt'?'selected':'')+'>lt</option>'
-      +'<option '+(it.unidad==='caja'?'selected':'')+'>caja</option>'
-      +'<option '+(it.unidad==='rollo'?'selected':'')+'>rollo</option>'
-      +'<option '+(it.unidad==='juego'?'selected':'')+'>juego</option>'
-      +'</select>'
+      +_unidadOptions(it.unidad, 'var v=this.value;if(v===\'__nueva__\'){agregarUnidad(this,function(n){rqItems['+i+'].unidad=n;renderItemsForm();});}else{rqItems['+i+'].unidad=v;}')
       +'</div></div>';
   }).join('');
 }
@@ -1341,16 +1332,7 @@ function renderEditItems() {
       +'<input class="form-input" placeholder="Descripción *" value="'+escHtml(it.descripcion)+'" oninput="_editItems['+i+'].descripcion=this.value" style="margin-bottom:8px">'
       +'<div style="display:flex;gap:8px">'
       +'<input class="form-input" type="number" placeholder="Cant." value="'+it.cantidad+'" oninput="_editItems['+i+'].cantidad=this.value" style="flex:1">'
-      +'<select class="form-input" onchange="_editItems['+i+'].unidad=this.value" style="flex:1">'
-      +'<option '+(it.unidad==='pza'?'selected':'')+'>pza</option>'
-      +'<option '+(it.unidad==='m'?'selected':'')+'>m</option>'
-      +'<option '+(it.unidad==='m2'?'selected':'')+'>m2</option>'
-      +'<option '+(it.unidad==='kg'?'selected':'')+'>kg</option>'
-      +'<option '+(it.unidad==='lt'?'selected':'')+'>lt</option>'
-      +'<option '+(it.unidad==='caja'?'selected':'')+'>caja</option>'
-      +'<option '+(it.unidad==='rollo'?'selected':'')+'>rollo</option>'
-      +'<option '+(it.unidad==='juego'?'selected':'')+'>juego</option>'
-      +'</select>'
+      +_unidadOptions(it.unidad, 'var v=this.value;if(v===\'__nueva__\'){agregarUnidad(this,function(n){_editItems['+i+'].unidad=n;renderEditItems();});}else{_editItems['+i+'].unidad=v;}')
       +'</div></div>';
   }).join('');
 }
