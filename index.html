@@ -483,7 +483,7 @@ function renderContent() {
 }
 
 function renderReqs(reqs, mode) {
-  var _pLabel = {MATERIAL:'\U0001F4E6 Mat',MANO_DE_OBRA:'\U0001F477 MOD',EQUIPO:'\U0001F69C Equipo',SUBCONTRATO:'\U0001F91D Sub',INDIRECTO:'\U0001F3E2 Ind',OTRO:'\U0001F4CE Otro'};
+  var _pLabel = {MATERIAL:'Mat',MANO_DE_OBRA:'MOD',EQUIPO:'Equipo',SUBCONTRATO:'Sub',INDIRECTO:'Ind',OTRO:'Otro'};
   var _pColor = {MATERIAL:'#3B82F6',MANO_DE_OBRA:'#10B981',EQUIPO:'#F59E0B',SUBCONTRATO:'#8B5CF6',INDIRECTO:'#6B7280',OTRO:'#6B7280'};
   if(!reqs.length) {
     return '<div class="empty"><div class="empty-icon">📋</div><div style="font-weight:700;margin-bottom:6px">Sin requisiciones</div><div class="item-sub">'+
@@ -942,7 +942,7 @@ async function doEliminarReq() {
   } catch(e){ showToast('Error al eliminar',true); btn.textContent='Sí, eliminar'; btn.disabled=false; }
 }
 
-async async function autorizarReq(reqId) {
+async function autorizarReq(reqId) {
   try {
     const reqs = await db('GET', 'requisiciones?id=eq.'+reqId+'&select=monto_cotizado,folio,proveedor,obra_id,partida,notas,urgencia,fecha_requerida,cxp_id');
     const r = reqs && reqs[0];
