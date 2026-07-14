@@ -311,6 +311,7 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
 
 // ── STATE ──────────────────────────────────────────────
 var pin = '', currentUser = null, obrasData = [], reqData = [], curTab = 'mis', materialesFrecuentes = [];
+var _reqFiltroObra = '', _reqFiltroSolicitante = '', _reqFiltroEstado = '', _reqFiltroPartida = '';
 var rqItems = []; // items in new req form
 
 // ── UTILS ─────────────────────────────────────────────
@@ -458,6 +459,80 @@ function _filtrarMisReqs(all) {
 }
 
 // ── RENDER ─────────────────────────────────────────────
+function setReqFiltro(campo, valor) {
+  if(campo==='obra')         _reqFiltroObra         = valor;
+  if(campo==='solicitante')  _reqFiltroSolicitante  = valor;
+  if(campo==='estado')       _reqFiltroEstado       = valor;
+  if(campo==='partida')      _reqFiltroPartida      = valor;
+  renderContent();
+}
+
+function limpiarFiltrosReq() {
+  _reqFiltroObra=''; _reqFiltroSolicitante=''; _reqFiltroEstado=''; _reqFiltroPartida='';
+  renderContent();
+}
+
+function aplicarFiltrosReq(reqs) {
+  return reqs.filter(function(r) {
+    var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
+    var obraNombre = obra ? obra.nombre : '';
+    var sol = r.solicitante || r.solicitante_nombre || '';
+    if(_reqFiltroObra        && obraNombre !== _reqFiltroObra)               return false;
+    if(_reqFiltroSolicitante && sol !== _reqFiltroSolicitante)                return false;
+    if(_reqFiltroEstado      && (r.estado||'').toLowerCase() !== _reqFiltroEstado) return false;
+    if(_reqFiltroPartida     && (r.partida||'') !== _reqFiltroPartida)        return false;
+    return true;
+  });
+}
+
+function renderFiltrosReq(reqs) {
+  var obras = [];
+  var sols  = [];
+  reqs.forEach(function(r) {
+    var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
+    var oNom = obra ? obra.nombre : '';
+    var sol  = r.solicitante || r.solicitante_nombre || '';
+    if(oNom && !obras.includes(oNom)) obras.push(oNom);
+    if(sol  && !sols.includes(sol))   sols.push(sol);
+  });
+  obras.sort(); sols.sort();
+
+  var activos = [_reqFiltroObra,_reqFiltroSolicitante,_reqFiltroEstado,_reqFiltroPartida].filter(Boolean).length;
+  var h = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center">';
+
+  // Obra
+  h += '<select onchange="setReqFiltro(\'obra\',this.value)" style="flex:1;min-width:130px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:Space Grotesk,sans-serif">';
+  h += '<option value="">🏗 Todas las obras</option>';
+  obras.forEach(function(o){ h += '<option value="'+o+'"'+(o===_reqFiltroObra?' selected':'')+'>'+o+'</option>'; });
+  h += '</select>';
+
+  // Solicitante / Gestión
+  h += '<select onchange="setReqFiltro(\'solicitante\',this.value)" style="flex:1;min-width:130px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:Space Grotesk,sans-serif">';
+  h += '<option value="">👤 Todos los solicitantes</option>';
+  sols.forEach(function(s){ h += '<option value="'+s+'"'+(s===_reqFiltroSolicitante?' selected':'')+'>'+s+'</option>'; });
+  h += '</select>';
+
+  // Estado
+  var estados = ['pendiente','cotizada','autorizada','comprada','recibida','rechazada'];
+  h += '<select onchange="setReqFiltro(\'estado\',this.value)" style="flex:1;min-width:120px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:Space Grotesk,sans-serif">';
+  h += '<option value="">📋 Todos los estados</option>';
+  estados.forEach(function(e){ h += '<option value="'+e+'"'+(e===_reqFiltroEstado?' selected':'')+'>'+e.charAt(0).toUpperCase()+e.slice(1)+'</option>'; });
+  h += '</select>';
+
+  // Partida
+  var partidas = [{v:'MATERIAL',l:'📦 Material'},{v:'MANO_DE_OBRA',l:'👷 Mano de Obra'},{v:'EQUIPO',l:'🚜 Equipo'},{v:'SUBCONTRATO',l:'🤝 Subcontrato'},{v:'INDIRECTO',l:'🏢 Indirecto'},{v:'OTRO',l:'📎 Otro'}];
+  h += '<select onchange="setReqFiltro(\'partida\',this.value)" style="flex:1;min-width:120px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:Space Grotesk,sans-serif">';
+  h += '<option value="">🗂 Todas las partidas</option>';
+  partidas.forEach(function(p){ h += '<option value="'+p.v+'"'+( p.v===_reqFiltroPartida?' selected':'')+'>'+p.l+'</option>'; });
+  h += '</select>';
+
+  if(activos>0) {
+    h += '<button onclick="limpiarFiltrosReq()" style="padding:7px 14px;border-radius:8px;border:1px solid var(--danger)44;background:rgba(255,77,106,.08);color:var(--danger);font-size:12px;font-weight:700;cursor:pointer;font-family:Space Grotesk,sans-serif;white-space:nowrap">✕ Limpiar ('+activos+')</button>';
+  }
+  h += '</div>';
+  return h;
+}
+
 function renderContent() {
   var el = document.getElementById('content');
   var reqs = [];
@@ -472,13 +547,12 @@ function renderContent() {
     var btnNueva = '<button class="btn-primary" onclick="abrirNueva()" style="margin-bottom:16px">+ Nueva requisición</button>';
     el.innerHTML = btnNueva + renderReqs(reqs, 'mis');
   } else if(curTab==='todas') {
-    // Admin and compras see all requisitions
-    reqs = reqData;
-    el.innerHTML = renderReqs(reqs, 'todas');
+    reqs = aplicarFiltrosReq(reqData);
+    el.innerHTML = renderFiltrosReq(reqData) + renderReqs(reqs, 'todas');
   } else if(curTab==='autorizar') {
-    // Director sees cotizadas pending authorization
-    reqs = reqData.filter(function(r){ return (r.estado||'').toLowerCase()==='cotizada'; });
-    el.innerHTML = '<div style="font-size:13px;color:var(--dim);margin-bottom:16px">Requisiciones cotizadas pendientes de autorización</div>' + renderReqs(reqs, 'autorizar');
+    var baseReqs = reqData.filter(function(r){ return (r.estado||'').toLowerCase()==='cotizada'; });
+    reqs = aplicarFiltrosReq(baseReqs);
+    el.innerHTML = renderFiltrosReq(baseReqs) + renderReqs(reqs, 'autorizar');
   }
 }
 
