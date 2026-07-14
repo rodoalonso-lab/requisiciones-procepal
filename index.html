@@ -1075,7 +1075,7 @@ async function autorizarReq(reqId) {
   } catch(e){ showToast('Error: '+e.message, true); }
 }
 
-async async function rechazarReq(reqId) {
+async function rechazarReq(reqId) {
   if(currentUser.rol!=='admin' && currentUser.rol!=='director') {
     showToast('Sin permiso para rechazar requisiciones', true); return;
   }
