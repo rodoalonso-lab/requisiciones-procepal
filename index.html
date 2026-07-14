@@ -415,7 +415,7 @@ function mostrarMain() {
   var mods = currentUser.permisosModulos || {};
   var hayMods = Object.keys(mods).length > 0;
   // Si hay permisos de módulo definidos en admin, usarlos; si no, usar lógica de rol
-  var verTodas     = hayMods ? mods.ver_todas    === true : (isCompras||isDir);
+  var verTodas     = hayMods ? mods.ver_todas    === true : (isCompras||isDir||currentUser.rol==='operativo');
   var verAutorizar = hayMods ? mods.autorizar    === true : isDir;
   document.getElementById('tab-todas').style.display    = verTodas     ? '' : 'none';
   document.getElementById('tab-autorizar').style.display = verAutorizar ? '' : 'none';
@@ -441,10 +441,11 @@ function setTab(tab) {
 async function loadData() {
   var isAdmin = currentUser.rol==='admin'||currentUser.rol==='director';
   var isCompras = currentUser.rol==='compras';
-  // Always load all for admin/compras; load all and filter client-side for others
+  var isOperativo = currentUser.rol==='operativo';
+  // Always load all for admin/compras/operativo; load all and filter client-side for others
   // (solicitante_id may not always match perfectly across tables)
   reqData = await db('GET','requisiciones?order=created_at.desc') || [];
-  if(!isAdmin && !isCompras) {
+  if(!isAdmin && !isCompras && !isOperativo) {
     reqData = _filtrarMisReqs(reqData);
   }
 }
@@ -613,6 +614,7 @@ async function verDetalle(reqId) {
   var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
   var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
   var isCompras = currentUser.rol==='compras';
+  var puedeCotizar = isCompras || currentUser.rol==='operativo';
 
   var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
     +'<div><div style="font-size:20px;font-weight:800">'+fmtFolio(r)+'</div>'
@@ -662,7 +664,7 @@ async function verDetalle(reqId) {
     html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="autorizarReq(\''+reqId+'\')">✓ Autorizar compra</button>';
     html += '<button class="btn-danger" style="margin-bottom:8px" onclick="rechazarReq(\''+reqId+'\')">✗ Rechazar</button>';
   }
-  if(isCompras && est==='pendiente') {
+  if(puedeCotizar && est==='pendiente') {
     html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\')">💰 Cotizar</button>';
   }
   if(isCompras && est==='autorizada') {
