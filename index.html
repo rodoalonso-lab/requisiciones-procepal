@@ -1019,6 +1019,9 @@ async function doEliminarReq() {
 }
 
 async function autorizarReq(reqId) {
+  if(currentUser.rol!=='admin' && currentUser.rol!=='director') {
+    showToast('Sin permiso para autorizar requisiciones', true); return;
+  }
   try {
     const reqs = await db('GET', 'requisiciones?id=eq.'+reqId+'&select=monto_cotizado,folio,proveedor,obra_id,partida,notas,urgencia,fecha_requerida,cxp_id');
     const r = reqs && reqs[0];
@@ -1072,7 +1075,10 @@ async function autorizarReq(reqId) {
   } catch(e){ showToast('Error: '+e.message, true); }
 }
 
-async function rechazarReq(reqId) {
+async async function rechazarReq(reqId) {
+  if(currentUser.rol!=='admin' && currentUser.rol!=='director') {
+    showToast('Sin permiso para rechazar requisiciones', true); return;
+  }
   if(!confirm('¿Rechazar esta requisición?')) return;
   try {
     await db('PATCH','requisiciones?id=eq.'+reqId,{estado:'rechazada'});
