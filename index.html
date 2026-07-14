@@ -940,26 +940,57 @@ async function doEliminarReq() {
   } catch(e){ showToast('Error al eliminar',true); btn.textContent='Sí, eliminar'; btn.disabled=false; }
 }
 
-async function autorizarReq(reqId) {
-  // Verificar que tenga monto_cotizado antes de autorizar
+async async function autorizarReq(reqId) {
   try {
-    const reqs = await db('GET', 'requisiciones?id=eq.'+reqId+'&select=monto_cotizado,folio');
+    const reqs = await db('GET', 'requisiciones?id=eq.'+reqId+'&select=monto_cotizado,folio,proveedor,obra_id,partida,notas,urgencia,fecha_requerida,cxp_id');
     const r = reqs && reqs[0];
     if (!r) { showToast('Requisición no encontrada', true); return; }
+
+    // Si ya tiene CxP generada, solo autorizar sin duplicar
+    if (r.cxp_id) {
+      if (!confirm('Esta requisición ya tiene una CxP en Finanzas. ¿Autorizar de todas formas?')) return;
+      await db('PATCH','requisiciones?id=eq.'+reqId, {estado:'autorizada'});
+      showToast('✅ Compra autorizada');
+      closeSheet('detalle'); await loadData(); renderContent(); return;
+    }
+
     const montoActual = parseFloat(r.monto_cotizado)||0;
+    var montoFinal = montoActual;
     if (montoActual <= 0) {
-      const montoStr = prompt(`${r.folio}: Ingresa el monto cotizado antes de autorizar ($):`);
+      const montoStr = prompt(r.folio+': Ingresa el monto cotizado antes de autorizar ($):');
       if (!montoStr) return;
-      const montoNuevo = parseFloat(montoStr);
-      if (!montoNuevo || montoNuevo <= 0) { showToast('Monto inválido', true); return; }
-      await db('PATCH','requisiciones?id=eq.'+reqId, {estado:'autorizada', monto_cotizado: montoNuevo});
+      montoFinal = parseFloat(montoStr);
+      if (!montoFinal || montoFinal <= 0) { showToast('Monto inválido', true); return; }
+      await db('PATCH','requisiciones?id=eq.'+reqId, {estado:'autorizada', monto_cotizado: montoFinal});
     } else {
-      if (!confirm(`¿Autorizar esta compra por ${fmt(montoActual)}?`)) return;
+      if (!confirm('¿Autorizar esta compra por '+fmt(montoActual)+' y generar CxP en Finanzas?')) return;
       await db('PATCH','requisiciones?id=eq.'+reqId, {estado:'autorizada'});
     }
-    showToast('✅ Compra autorizada');
-    closeSheet('detalle');
-    await loadData(); renderContent();
+
+    // ── Generar CxP automática ──────────────────────────────
+    var obra = (obrasData||[]).find(function(o){ return o.id===r.obra_id; });
+    var urgToPriv = {alta:'ALTA', media:'MEDIA', baja:'BAJA'};
+    var cxpPayload = {
+      proveedor:        r.proveedor || r.folio,
+      obra_id:          r.obra_id   || null,
+      obra_nombre:      obra ? obra.nombre : null,
+      concepto:         (r.notas||r.folio||'').substring(0,200),
+      monto:            montoFinal,
+      partida:          r.partida || 'MATERIAL',
+      requisicion_id:   reqId,
+      estatus:          'PENDIENTE',
+      prioridad:        urgToPriv[r.urgencia] || 'MEDIA',
+      fecha_vencimiento: r.fecha_requerida || null,
+      created_by:       (typeof currentUser !== 'undefined' && currentUser) ? currentUser.nombre : null
+    };
+    var cxpRows = await db('POST','cuentas_por_pagar', cxpPayload);
+    var cxpId   = cxpRows && cxpRows[0] && cxpRows[0].id;
+    if (cxpId) {
+      await db('PATCH','requisiciones?id=eq.'+reqId, {cxp_id: cxpId});
+    }
+
+    showToast('✅ Autorizada · CxP generada en Finanzas');
+    closeSheet('detalle'); await loadData(); renderContent();
   } catch(e){ showToast('Error: '+e.message, true); }
 }
 
