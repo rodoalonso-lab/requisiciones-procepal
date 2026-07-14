@@ -415,7 +415,8 @@ function mostrarMain() {
   var mods = currentUser.permisosModulos || {};
   var hayMods = Object.keys(mods).length > 0;
   // Si hay permisos de módulo definidos en admin, usarlos; si no, usar lógica de rol
-  var verTodas     = hayMods ? mods.ver_todas    === true : (isCompras||isDir||currentUser.rol==='operativo'||currentUser.rol==='capturista');
+  var _puedeVerTodas = isCompras||isDir||currentUser.rol==='operativo'||currentUser.rol==='capturista';
+  var verTodas     = _puedeVerTodas || (hayMods && mods.ver_todas === true);
   var verAutorizar = isDir; // Solo admin/director puede autorizar
   document.getElementById('tab-todas').style.display    = verTodas     ? '' : 'none';
   document.getElementById('tab-autorizar').style.display = verAutorizar ? '' : 'none';
