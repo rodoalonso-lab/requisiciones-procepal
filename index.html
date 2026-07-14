@@ -312,6 +312,7 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
 // ── STATE ──────────────────────────────────────────────
 var pin = '', currentUser = null, obrasData = [], reqData = [], curTab = 'mis', materialesFrecuentes = [];
 var _reqFiltroObra = '', _reqFiltroSolicitante = '', _reqFiltroEstado = '', _reqFiltroPartida = '';
+var unidadesData = ['pza','m','m2','m3','kg','lt','caja','rollo','juego','hr','día','servicio'];
 var rqItems = []; // items in new req form
 
 // ── UTILS ─────────────────────────────────────────────
@@ -445,6 +446,10 @@ async function loadData() {
   var isCapturista = currentUser.rol==='operativo' || currentUser.rol==='capturista';
   // Always load all for admin/compras/capturista; load all and filter client-side for others
   // (solicitante_id may not always match perfectly across tables)
+  try {
+    var uRows = await db('GET','unidades_medida?order=nombre.asc') || [];
+    if(uRows.length) unidadesData = uRows.map(function(u){ return u.nombre; });
+  } catch(e){}
   reqData = await db('GET','requisiciones?order=created_at.desc') || [];
   if(!isAdmin && !isCompras && !isCapturista) {
     reqData = _filtrarMisReqs(reqData);
@@ -712,6 +717,27 @@ function abrirNueva() {
 function agregarItemForm() {
   rqItems.push({descripcion:'',especificaciones:'',cantidad:'',unidad:'pza'});
   renderItemsForm();
+}
+
+function _unidadOptions(current, onchangeExpr) {
+  var opts = unidadesData.map(function(u) {
+    return '<option value="'+u+'" '+(u===current?'selected':'')+'>'+u+'</option>';
+  }).join('');
+  opts += '<option value="__nueva__">＋ Nueva unidad…</option>';
+  return '<select class="form-input" style="flex:1" onchange="'+onchangeExpr+'">'+opts+'</select>';
+}
+
+async function agregarUnidad(selectEl, onSetFn) {
+  var nombre = (prompt('Nueva unidad de medida:') || '').trim().toLowerCase();
+  if(!nombre) { selectEl.value = selectEl.dataset.prev || unidadesData[0]; return; }
+  if(unidadesData.includes(nombre)) { onSetFn(nombre); selectEl.value = nombre; return; }
+  try {
+    await db('POST','unidades_medida', {nombre: nombre});
+    unidadesData.push(nombre);
+    unidadesData.sort();
+    onSetFn(nombre);
+    showToast('✅ Unidad "'+nombre+'" guardada');
+  } catch(e) { showToast('Error: '+e.message, true); }
 }
 
 function renderItemsForm() {
