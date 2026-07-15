@@ -1111,6 +1111,33 @@ async function autorizarReq(reqId) {
       closeSheet('detalle'); await loadData(); renderContent(); return;
     }
 
+    // ── Validación presupuestal ─────────────────────────────────────
+    if(r.obra_id && r.partida && r.partida !== 'SIN_PARTIDA') {
+      try {
+        var ppRows = await db('GET','presupuesto_partidas?obra_id=eq.'+r.obra_id+'&partida=eq.'+r.partida+'&select=monto') || [];
+        var presupPartida = ppRows.length ? (parseFloat(ppRows[0].monto)||0) : 0;
+        if(presupPartida > 0) {
+          var cxpCheck = await db('GET','cuentas_por_pagar?obra_id=eq.'+r.obra_id+'&partida=eq.'+r.partida+'&select=monto') || [];
+          var yaComprometido = cxpCheck.reduce(function(s,c){ return s+(parseFloat(c.monto)||0); }, 0);
+          var montoEsta = parseFloat(r.monto_cotizado)||0;
+          if(montoEsta > 0) {
+            var nuevoTotal = yaComprometido + montoEsta;
+            if(nuevoTotal > presupPartida) {
+              var fmtP = function(n){ return '$'+n.toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0}); };
+              var msg = '⚠️ ALERTA PRESUPUESTAL\n\n'
+                + 'Partida: '+r.partida.replace(/_/g,' ')+'\n'
+                + 'Presupuesto asignado: '+fmtP(presupPartida)+'\n'
+                + 'Ya comprometido: '+fmtP(yaComprometido)+'\n'
+                + 'Esta requisición: '+fmtP(montoEsta)+'\n'
+                + 'Excede el presupuesto en: '+fmtP(nuevoTotal-presupPartida)+'\n\n'
+                + '¿Autorizar de todas formas?';
+              if(!confirm(msg)) return;
+            }
+          }
+        }
+      } catch(e){ console.warn('Budget check error:', e); }
+    }
+    // ── Fin validación presupuestal ──────────────────────────
     const montoActual = parseFloat(r.monto_cotizado)||0;
     var montoFinal = montoActual;
     if (montoActual <= 0) {
