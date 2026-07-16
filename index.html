@@ -732,6 +732,18 @@ async function verDetalle(reqId) {
     }
   }
 
+  // CxP vinculada
+  if(cxpInfo && cxpInfo.folio) {
+    var _cxpSaldo = Math.max(0,(cxpInfo.monto||0)-(cxpInfo.pagado_parcial||0));
+    var _cxpColor = cxpInfo.estatus==='PAGADO'?'#10B981':cxpInfo.estatus==='VENCIDO'?'#EF4444':'#4D8EFF';
+    html += '<div style="background:rgba(77,142,255,.08);border:1px solid rgba(77,142,255,.25);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">';
+    html += '<div><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--dim);margin-bottom:3px">CxP EN FINANZAS</div>';
+    html += '<span style="font-size:13px;font-weight:800;font-family:monospace;color:#4D8EFF">'+cxpInfo.folio+'</span></div>';
+    html += '<div style="text-align:right"><div style="font-size:10px;color:var(--dim)">'+cxpInfo.estatus+'</div>';
+    html += '<div style="font-size:13px;font-weight:700;color:'+_cxpColor+'">$'+_cxpSaldo.toLocaleString()+'</div></div>';
+    html += '</div>';
+  }
+
   // Actions
   var est = (r.estado||'pendiente').toLowerCase();
   if(isDir && est==='cotizada') {
