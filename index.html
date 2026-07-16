@@ -1202,12 +1202,13 @@ async function autorizarReq(reqId) {
       created_by:       (typeof currentUser !== 'undefined' && currentUser) ? currentUser.nombre : null
     };
     var cxpRows = await db('POST','cuentas_por_pagar', cxpPayload);
-    var cxpId   = cxpRows && cxpRows[0] && cxpRows[0].id;
+    var cxpId    = cxpRows && cxpRows[0] && cxpRows[0].id;
+    var cxpFolio = cxpRows && cxpRows[0] && cxpRows[0].folio;
     if (cxpId) {
       await db('PATCH','requisiciones?id=eq.'+reqId, {cxp_id: cxpId});
     }
 
-    showToast('✅ Autorizada · CxP generada en Finanzas');
+    showToast('✅ Autorizada · CxP ' + (cxpFolio||'generada') + ' en Finanzas');
     closeSheet('detalle'); await loadData(); renderContent();
   } catch(e){ showToast('Error: '+e.message, true); }
 }
