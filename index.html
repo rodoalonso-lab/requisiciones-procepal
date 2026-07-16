@@ -675,6 +675,8 @@ async function verDetalle(reqId) {
   if(!r) return;
   var items = [];
   try { items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; } catch(e){}
+  var cxpInfo = null;
+  if(r.cxp_id) { try { var _cx=await db('GET','cuentas_por_pagar?id=eq.'+r.cxp_id+'&select=folio,estatus,monto,pagado_parcial'); cxpInfo=_cx&&_cx[0]||null; } catch(e){} }
   var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
   var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
   var isCompras = currentUser.rol==='compras';
