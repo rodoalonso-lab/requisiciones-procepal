@@ -720,6 +720,14 @@ async function verDetalle(reqId) {
       +(r.tiempo_entrega?'<div class="item-sub">⏱ '+r.tiempo_entrega+'</div>':'')
       +(r.notas_cotizacion?'<div class="item-sub">'+r.notas_cotizacion+'</div>':'')
       +'</div>';
+
+    // Editar / borrar cotización (solo si puedeCotizar y aún no autorizada)
+    if(puedeCotizar) {
+      html += '<div style="display:flex;gap:8px;margin-bottom:12px">'
+        +'<button class="btn-secondary" style="flex:1;font-size:13px" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\',true)">✏️ Editar cotización</button>'
+        +'<button class="btn-danger" style="flex:1;font-size:13px" onclick="borrarCotizacion(\''+reqId+'\')">🗑 Borrar</button>'
+        +'</div>';
+    }
   }
 
   // Actions
@@ -884,12 +892,20 @@ async function saveRequisicion() {
 }
 
 // ── COTIZAR ────────────────────────────────────────────
-async function abrirCotizar(reqId) {
+async function abrirCotizar(reqId, reEditar) {
   document.getElementById('cot-req-id').value=reqId;
-  document.getElementById('cot-proveedor').value='';
-  document.getElementById('cot-entrega').value='';
-  document.getElementById('cot-notas').value='';
   document.getElementById('cot-total-display').textContent='$0';
+  // Pre-fill if editing existing cotización
+  if(reEditar) {
+    var r = reqData.find(function(x){ return x.id===reqId; });
+    document.getElementById('cot-proveedor').value = r&&r.proveedor ? r.proveedor : '';
+    document.getElementById('cot-entrega').value   = r&&r.tiempo_entrega ? r.tiempo_entrega : '';
+    document.getElementById('cot-notas').value     = r&&r.notas_cotizacion ? r.notas_cotizacion : '';
+  } else {
+    document.getElementById('cot-proveedor').value='';
+    document.getElementById('cot-entrega').value='';
+    document.getElementById('cot-notas').value='';
+  }
   // Load items
   var items = [];
   try{ items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; }catch(e){}
@@ -927,6 +943,24 @@ async function abrirCotizar(reqId) {
   }
   document.getElementById('cot-items-wrap').innerHTML = itemsHtml;
   openSheet('cotizar');
+}
+
+
+async function borrarCotizacion(reqId) {
+  if(!confirm('¿Borrar esta cotización?\nLa requisición volverá a estado pendiente.')) return;
+  try {
+    await db('PATCH','requisiciones?id=eq.'+reqId,{
+      estado:'pendiente',
+      proveedor:null,
+      monto_cotizado:null,
+      tiempo_entrega:null,
+      notas_cotizacion:null
+    });
+    showToast('🗑 Cotización eliminada');
+    closeSheet('detalle');
+    await loadData();
+    renderContent();
+  } catch(e){ showToast('Error: '+e.message,true); }
 }
 
 async function saveCotizacion() {
