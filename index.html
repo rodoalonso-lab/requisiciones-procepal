@@ -1213,6 +1213,7 @@ async function autorizarReq(reqId) {
       estatus:          'PENDIENTE',
       prioridad:        urgToPriv[r.urgencia] || 'MEDIA',
       fecha_vencimiento: r.fecha_requerida || null,
+      gestion:          r.solicitante || r.solicitante_nombre || null,
       created_by:       (typeof currentUser !== 'undefined' && currentUser) ? currentUser.nombre : null
     };
     var cxpRows = await db('POST','cuentas_por_pagar', cxpPayload);
