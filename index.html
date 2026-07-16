@@ -765,8 +765,10 @@ async function verDetalle(reqId) {
   // Show delete button for admin or own pending requisition
   var esMia = (r.solicitante||'').toLowerCase()===(currentUser.nombre||'').toLowerCase();
   var canDelete = currentUser.rol==='admin'||currentUser.rol==='director'||(esMia&&est==='pendiente');
-  // Edit button — own pending reqs only
-  if(esMia && est==='pendiente') {
+  // Edit button — admin/director siempre; capturista/operativo solo si es suya y no está autorizada/comprada/recibida
+  var estadosEditables = ['pendiente','cotizada','rechazada'];
+  var puedeEditar = isDir || (esMia && estadosEditables.includes(est));
+  if(puedeEditar) {
     html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirEditar(\''+reqId+'\')">✏️ Editar requisición</button>';
   }
   if(canDelete) html += '<button class="btn-danger" style="margin-bottom:8px" onclick="eliminarReq(\''+reqId+'\')">🗑 Eliminar requisición</button>';
