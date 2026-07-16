@@ -1147,7 +1147,7 @@ async function autorizarReq(reqId) {
     showToast('Sin permiso para autorizar requisiciones', true); return;
   }
   try {
-    const reqs = await db('GET', 'requisiciones?id=eq.'+reqId+'&select=monto_cotizado,folio,proveedor,obra_id,partida,notas,urgencia,fecha_requerida,cxp_id');
+    const reqs = await db('GET', 'requisiciones?id=eq.'+reqId+'&select=monto_cotizado,folio,proveedor,obra_id,partida,notas,urgencia,fecha_requerida,cxp_id,solicitante,solicitante_nombre');
     const r = reqs && reqs[0];
     if (!r) { showToast('Requisición no encontrada', true); return; }
 
