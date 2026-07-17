@@ -1154,11 +1154,17 @@ async function saveCotizacion() {
   if(!monto){ showToast('Ingresa al menos un precio',true); return; }
   var btn = document.getElementById('cot-save-btn');
   btn.textContent='Guardando...'; btn.disabled=true;
+  var sinIva  = parseFloat(document.getElementById('cot-siniva-hidden').value)||0;
+  var ivaM    = parseFloat(document.getElementById('cot-iva-hidden').value)||0;
+  var ivaPct  = parseFloat(document.getElementById('cot-ivapct-hidden').value)||0;
   try {
     await db('PATCH','requisiciones?id=eq.'+reqId,{
       estado:'cotizada',
       proveedor:document.getElementById('cot-proveedor').value.trim(),
-      monto_cotizado:monto,
+      monto_cotizado:sinIva,          // subtotal sin IVA (igual que confirmarAutorizacion en metalek)
+      iva_pct:ivaPct,
+      iva_cotizado:ivaM,
+      monto_total_con_iva:monto,      // monto (totalConIva) ya estaba guardado en cot-monto-hidden
       tiempo_entrega:document.getElementById('cot-entrega').value.trim(),
       notas_cotizacion:document.getElementById('cot-notas').value.trim()
     });
@@ -1281,6 +1287,14 @@ function calcCotTotal() {
     +'</div>';
   var hidden=document.getElementById('cot-monto-hidden');
   if(hidden) hidden.value=isFinite(totalConIva) ? totalConIva : 0;
+  var hSinIva=document.getElementById('cot-siniva-hidden');
+  if(hSinIva) hSinIva.value=isFinite(totalSinIva) ? totalSinIva : 0;
+  var hIva=document.getElementById('cot-iva-hidden');
+  if(hIva) hIva.value=isFinite(totalIva) ? totalIva : 0;
+  // IVA% efectivo: derivado de los totales (maneja mezcla de tasas)
+  var ivaPctEfectivo = (totalSinIva > 0) ? Math.round(totalIva/totalSinIva*100) : 0;
+  var hIvaPct=document.getElementById('cot-ivapct-hidden');
+  if(hIvaPct) hIvaPct.value=ivaPctEfectivo;
 }
 
 function eliminarReq(reqId) {
