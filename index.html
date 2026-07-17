@@ -577,7 +577,7 @@ function renderFiltrosReq(reqs) {
   h += '</select>';
 
   // Estado
-  var estados = ['pendiente','cotizada','autorizada','comprada','recibida','rechazada'];
+  var estados = ['pendiente','en comparativa','cotizada','autorizada','comprada','recibida','rechazada'];
   h += '<select onchange="setReqFiltro(\'estado\',this.value)" style="flex:1;min-width:120px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:Space Grotesk,sans-serif">';
   h += '<option value="">📋 Todos los estados</option>';
   estados.forEach(function(e){ h += '<option value="'+e+'"'+(e===_reqFiltroEstado?' selected':'')+'>'+e.charAt(0).toUpperCase()+e.slice(1)+'</option>'; });
