@@ -615,7 +615,10 @@ function renderContent() {
     reqs = aplicarFiltrosReq(reqData);
     el.innerHTML = renderFiltrosReq(reqData) + renderReqs(reqs, 'todas');
   } else if(curTab==='autorizar') {
-    var baseReqs = reqData.filter(function(r){ return (r.estado||'').toLowerCase()==='cotizada'; });
+    var baseReqs = reqData.filter(function(r){
+      var est = (r.estado||'').toLowerCase();
+      return est === 'cotizada' || est === 'en comparativa';
+    });
     reqs = aplicarFiltrosReq(baseReqs);
     el.innerHTML = renderFiltrosReq(baseReqs) + renderReqs(reqs, 'autorizar');
   }
