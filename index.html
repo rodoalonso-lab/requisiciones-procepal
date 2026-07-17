@@ -321,7 +321,7 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
 // actionFn(c) → string HTML opcional; se agrega dentro de cada tarjeta de comparativa.
 // ═══════════════════════════════════════════════════════════
 function renderCotizacionCard(r, comps, actionFn) {
-  var monto = parseFloat(r.monto_cotizado||0);
+  var monto = parseFloat(r.monto_total_con_iva||0) > 0 ? parseFloat(r.monto_total_con_iva) : parseFloat(r.monto_cotizado||0);
   if(comps.length > 0) {
     var html = '';
     comps.forEach(function(c) {
