@@ -1306,14 +1306,11 @@ async function doEliminarReq() {
   } catch(e){ showToast('Error al eliminar',true); btn.textContent='Sí, eliminar'; btn.disabled=false; }
 }
 
-async function autorizarReq(reqId) {
-  if(currentUser.rol!=='admin' && currentUser.rol!=='director') {
-    showToast('Sin permiso para autorizar requisiciones', true); return;
-  }
-  try {
-    const reqs = await db('GET', 'requisiciones?id=eq.'+reqId+'&select=monto_cotizado,folio,proveedor,obra_id,partida,notas,urgencia,fecha_requerida,cxp_id,solicitante,solicitante_nombre');
-    const r = reqs && reqs[0];
-    if (!r) { showToast('Requisición no encontrada', true); return; }
+// autorizarReq eliminada — la autorización y creación de CxP se hace exclusivamente desde Metalek
+
+async function rechazarReq_DISABLED() { /* no-op */ }
+
+async function rechazarReq(reqId) {
 
     // ── VALIDACIÓN OBLIGATORIA: precio > 0 ─────────────────────────
     const montoFinal = parseFloat(r.monto_cotizado)||0;
