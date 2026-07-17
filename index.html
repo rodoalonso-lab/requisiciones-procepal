@@ -676,6 +676,11 @@ function reqBadge(estado) {
 async function verDetalle(reqId) {
   var r = reqData.find(function(x){ return x.id===reqId; });
   if(!r) return;
+  // Siempre fetch fresco para ver datos actuales (precio, proveedor, etc.)
+  try {
+    var freshRows = await db('GET','requisiciones?id=eq.'+reqId);
+    if(freshRows && freshRows[0]) r = freshRows[0];
+  } catch(e){}
   var items = [];
   try { items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; } catch(e){}
   var comparativas = [];
