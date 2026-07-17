@@ -718,20 +718,51 @@ async function verDetalle(reqId) {
     html += '</div>';
   }
 
-  // Cotización info
-  if(r.proveedor) {
+  var est = (r.estado||'pendiente').toLowerCase();
+
+  // ── COMPARATIVA: tabla de cotizaciones de múltiples proveedores ──
+  if(comparativas.length > 0) {
+    var ganador = comparativas.find(function(c){ return c.seleccionado; });
+    html += '<div class="card" style="margin-bottom:12px">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+    html += '<div class="card-label" style="margin:0">📊 COMPARATIVA DE COTIZACIONES ('+comparativas.length+')</div>';
+    if(puedeCotizar && est!=='autorizada' && est!=='comprada' && est!=='recibida') {
+      html += '<button onclick="closeSheet(\'detalle\');abrirAgregarComparativa(\''+reqId+'\')" style="padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px;font-weight:600;cursor:pointer">+ Agregar</button>';
+    }
+    html += '</div>';
+
+    // Tabla de cotizaciones
+    comparativas.forEach(function(c) {
+      var esGanador = c.seleccionado;
+      var borde = esGanador ? '2px solid #10B981' : '1px solid var(--border)';
+      var bg = esGanador ? 'rgba(16,185,129,.08)' : 'var(--surface)';
+      html += '<div style="border:'+borde+';background:'+bg+';border-radius:10px;padding:12px;margin-bottom:8px">';
+      html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">';
+      html += '<div style="flex:1">';
+      html += '<div style="font-size:13px;font-weight:700">'+(esGanador?'✅ ':'')+escHtml(c.proveedor||'—')+'</div>';
+      html += '<div style="font-size:20px;font-weight:800;color:var(--accent);margin:2px 0">$'+parseFloat(c.precio_unitario||0).toLocaleString('es-MX',{minimumFractionDigits:2})+'</div>';
+      if(c.tiempo_entrega) html += '<div class="item-sub">⏱ '+escHtml(c.tiempo_entrega)+'</div>';
+      if(c.notas) html += '<div class="item-sub">'+escHtml(c.notas)+'</div>';
+      html += '</div>';
+      if(puedeCotizar && !esGanador && est!=='autorizada' && est!=='comprada' && est!=='recibida') {
+        html += '<button onclick="seleccionarGanador(\''+c.id+'\',\''+reqId+'\')" style="padding:6px 10px;border-radius:8px;border:1px solid #10B981;background:rgba(16,185,129,.1);color:#10B981;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Seleccionar</button>';
+      }
+      html += '</div></div>';
+    });
+    html += '</div>';
+
+    // Cotización directa (legado) si existe
+  } else if(r.proveedor) {
     html += '<div class="card" style="margin-bottom:12px">'
       +'<div class="card-label">COTIZACIÓN</div>'
-      +'<div style="font-size:15px;font-weight:700">'+r.proveedor+'</div>'
-      +'<div style="font-size:22px;font-weight:800;color:var(--accent);margin:4px 0">$'+parseFloat(r.monto_cotizado||0).toLocaleString()+'</div>'
-      +(r.tiempo_entrega?'<div class="item-sub">⏱ '+r.tiempo_entrega+'</div>':'')
-      +(r.notas_cotizacion?'<div class="item-sub">'+r.notas_cotizacion+'</div>':'')
+      +'<div style="font-size:15px;font-weight:700">'+escHtml(r.proveedor)+'</div>'
+      +'<div style="font-size:22px;font-weight:800;color:var(--accent);margin:4px 0">$'+parseFloat(r.monto_cotizado||0).toLocaleString('es-MX',{minimumFractionDigits:2})+'</div>'
+      +(r.tiempo_entrega?'<div class="item-sub">⏱ '+escHtml(r.tiempo_entrega)+'</div>':'')
+      +(r.notas_cotizacion?'<div class="item-sub">'+escHtml(r.notas_cotizacion)+'</div>':'')
       +'</div>';
-
-    // Editar / borrar cotización (solo si puedeCotizar y aún no autorizada)
-    if(puedeCotizar) {
+    if(puedeCotizar && est!=='autorizada' && est!=='comprada' && est!=='recibida') {
       html += '<div style="display:flex;gap:8px;margin-bottom:12px">'
-        +'<button class="btn-secondary" style="flex:1;font-size:13px" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\',true)">✏️ Editar cotización</button>'
+        +'<button class="btn-secondary" style="flex:1;font-size:13px" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\',true)">✏️ Editar</button>'
         +'<button class="btn-danger" style="flex:1;font-size:13px" onclick="borrarCotizacion(\''+reqId+'\')">🗑 Borrar</button>'
         +'</div>';
     }
@@ -750,28 +781,33 @@ async function verDetalle(reqId) {
   }
 
   // Actions
-  var est = (r.estado||'pendiente').toLowerCase();
-  if(isDir && est==='cotizada') {
-    html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="autorizarReq(\''+reqId+'\')">✓ Autorizar compra</button>';
+  if(isDir && (est==='cotizada' || est==='en comparativa')) {
+    var ganadorComp = comparativas.find(function(c){ return c.seleccionado; });
+    var puedeAutorizar = est==='cotizada' || (est==='en comparativa' && ganadorComp);
+    if(puedeAutorizar) {
+      html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="autorizarReq(\''+reqId+'\')">✓ Autorizar compra</button>';
+    } else {
+      html += '<div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#F0A500">⚠️ Selecciona un proveedor ganador para poder autorizar</div>';
+    }
     html += '<button class="btn-danger" style="margin-bottom:8px" onclick="rechazarReq(\''+reqId+'\')">✗ Rechazar</button>';
   }
-  if(puedeCotizar && est==='pendiente') {
-    html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\')">💰 Cotizar</button>';
+  if(puedeCotizar && (est==='pendiente' || est==='en comparativa')) {
+    if(comparativas.length === 0) {
+      html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\')">💰 Cotizar</button>';
+    }
+    html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirAgregarComparativa(\''+reqId+'\')">➕ Agregar cotización de proveedor</button>';
   }
   if(isCompras && est==='autorizada') {
     html += '<button class="btn-primary" style="margin-bottom:8px" onclick="marcarComprada(\''+reqId+'\')">🛒 Marcar como comprada</button>';
     html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="confirmarRecepcion(\''+reqId+'\')">📦 Registrar recepción</button>';
   }
-
   if(est==='comprada') {
     var puedeRecibir = isCompras || isDir || currentUser.tipo==='trabajador' || (r.solicitante||'').toLowerCase()===(currentUser.nombre||'').toLowerCase();
     if(puedeRecibir) html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="confirmarRecepcion(\''+reqId+'\')">📦 Registrar recepción</button>';
   }
-  // Show delete button for admin or own pending requisition
   var esMia = (r.solicitante||'').toLowerCase()===(currentUser.nombre||'').toLowerCase();
   var canDelete = currentUser.rol==='admin'||currentUser.rol==='director'||(esMia&&est==='pendiente');
-  // Edit button — admin/director siempre; capturista/operativo solo si es suya y no está autorizada/comprada/recibida
-  var estadosEditables = ['pendiente','cotizada','rechazada'];
+  var estadosEditables = ['pendiente','cotizada','en comparativa','rechazada'];
   var puedeEditar = isDir || (esMia && estadosEditables.includes(est));
   if(puedeEditar) {
     html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirEditar(\''+reqId+'\')">✏️ Editar requisición</button>';
