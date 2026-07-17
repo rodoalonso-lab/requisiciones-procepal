@@ -774,14 +774,10 @@ async function verDetalle(reqId) {
     html += '<button onclick="closeSheet(\'detalle\');abrirAgregarComparativa(\''+reqId+'\')" style="padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:11px;font-weight:600;cursor:pointer">+ Agregar</button>';
   }
   html += '</div>';
-  html += renderCotizacionCard(r, comparativas);
-  // Botón seleccionar ganador (solo cuando hay comparativas y puede editar)
-  if(esEditable && comparativas.length > 0) {
-    comparativas.filter(function(c){ return !c.seleccionado; }).forEach(function(c) {
-      // El botón "Seleccionar" va dentro de la card del proveedor — reinjertamos después de renderCotizacionCard
-      // No hay forma de inyectar dentro del render, así que usamos el approach inline previo
-    });
-  }
+  html += renderCotizacionCard(r, comparativas, esEditable ? function(c) {
+    if(c.seleccionado) return '';
+    return '<button onclick="seleccionarGanador(\''+c.id+'\',\''+reqId+'\')" style="padding:6px 10px;border-radius:8px;border:1px solid #10B981;background:rgba(16,185,129,.1);color:#10B981;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Seleccionar</button>';
+  } : null);
   // Botones editar/borrar para cotización legado
   if(esEditable && comparativas.length === 0 && r.proveedor) {
     html += '<div style="display:flex;gap:8px;margin-top:8px">'
