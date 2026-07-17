@@ -1003,6 +1003,115 @@ async function abrirCotizar(reqId, reEditar) {
 }
 
 
+// ── COMPARATIVAS: seleccionar ganador ─────────────────
+async function seleccionarGanador(compId, reqId) {
+  try {
+    // Des-seleccionar todas las cotizaciones de esta req
+    await db('PATCH','comparativas?requisicion_id=eq.'+reqId, { seleccionado: false });
+    // Seleccionar la ganadora
+    var comp = await db('PATCH','comparativas?id=eq.'+compId, { seleccionado: true });
+    // Obtener el monto del ganador para guardarlo en la req
+    var rows = await db('GET','comparativas?id=eq.'+compId+'&select=precio_unitario,proveedor,tiempo_entrega,notas');
+    var c = rows && rows[0];
+    // Actualizar la req a cotizada con el proveedor ganador
+    await db('PATCH','requisiciones?id=eq.'+reqId, {
+      estado: 'cotizada',
+      proveedor: c ? c.proveedor : null,
+      monto_cotizado: c ? parseFloat(c.precio_unitario||0) : null,
+      tiempo_entrega: c ? c.tiempo_entrega : null,
+      notas_cotizacion: c ? c.notas : null
+    });
+    showToast('✅ Proveedor seleccionado — requisición lista para autorizar');
+    await loadData();
+    renderContent();
+    verDetalle(reqId);
+  } catch(e) { showToast('Error: '+e.message, true); }
+}
+
+// ── COMPARATIVAS: agregar cotización de proveedor ──────
+async function abrirAgregarComparativa(reqId) {
+  // Reutilizar el sheet de cotizar pero en modo "comparativa"
+  document.getElementById('cot-req-id').value = reqId;
+  document.getElementById('cot-total-display').textContent = '$0';
+  document.getElementById('cot-proveedor').value = '';
+  document.getElementById('cot-entrega').value = '';
+  document.getElementById('cot-notas').value = '';
+  // Mostrar items para calcular total
+  var items = [];
+  try { items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; } catch(e){}
+  var itemsHtml = '';
+  if(items.length) {
+    itemsHtml = items.map(function(it,i){
+      var nom = it.nombre_material||it.material||it.descripcion||'—';
+      var cant = it.cantidad||0;
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">'
+        +'<div style="margin-bottom:10px"><div style="font-size:13px;font-weight:700">'+nom+'</div>'
+        +'<div style="font-size:11px;color:var(--dim)">Cant: '+cant+' '+(it.unidad||'pza')+'</div></div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+        +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">PRECIO UNIT. ($)</div>'
+        +'<input class="form-input fc-precio-unit" type="number" placeholder="0.00" data-idx="'+i+'" data-cant="'+cant+'" oninput="calcCotTotal()" style="padding:8px 10px"></div>'
+        +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">% DESCUENTO</div>'
+        +'<input class="form-input fc-desc-pct" type="number" placeholder="0" min="0" max="100" data-idx="'+i+'" oninput="calcCotTotal()" style="padding:8px 10px"></div>'
+        +'</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+        +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">IVA (%)</div>'
+        +'<select class="form-input fc-iva-sel" data-idx="'+i+'" oninput="calcCotTotal()" style="padding:8px 10px">'
+        +'<option value="0">Sin IVA</option><option value="16" selected>16%</option><option value="8">8% frontera</option>'
+        +'</select></div>'
+        +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">TOTAL C/IVA</div>'
+        +'<div id="cot-iva-'+i+'" style="font-size:14px;font-weight:800;color:#5BC4C0;padding:10px 0">$0</div></div>'
+        +'</div></div>';
+    }).join('');
+  } else {
+    itemsHtml = '<div class="item-sub" style="margin-bottom:12px">Sin materiales — ingresa el monto total manualmente</div>'
+      +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">MONTO TOTAL ($)</div>'
+      +'<input class="form-input" id="cot-monto-manual" type="number" placeholder="0.00" oninput="document.getElementById(\'cot-monto-hidden\').value=this.value;document.getElementById(\'cot-total-display\').textContent=\'$\'+parseFloat(this.value||0).toLocaleString()" style="padding:8px 10px;margin-bottom:8px"></div>';
+  }
+  document.getElementById('cot-items-wrap').innerHTML = itemsHtml;
+  // Cambiar el botón de guardar al modo comparativa
+  var btn = document.getElementById('cot-save-btn');
+  btn.textContent = 'Guardar cotización';
+  btn.onclick = function(){ saveComparativa(reqId); };
+  openSheet('cotizar');
+}
+
+async function saveComparativa(reqId) {
+  var monto = parseFloat(document.getElementById('cot-monto-hidden').value)||0;
+  var proveedor = document.getElementById('cot-proveedor').value.trim();
+  var entrega = document.getElementById('cot-entrega').value.trim();
+  if(!proveedor) { showToast('Ingresa el proveedor',true); return; }
+  if(!monto) { showToast('Ingresa al menos un precio',true); return; }
+  var btn = document.getElementById('cot-save-btn');
+  btn.textContent='Guardando...'; btn.disabled=true;
+  try {
+    await db('POST','comparativas',{
+      requisicion_id: reqId,
+      proveedor: proveedor,
+      precio_unitario: monto,
+      tiempo_entrega: document.getElementById('cot-entrega').value.trim()||null,
+      notas: document.getElementById('cot-notas').value.trim()||null,
+      seleccionado: false
+    });
+    // Asegurar que el estado sea 'en comparativa' si no tenía ganador
+    var r = reqData.find(function(x){ return x.id===reqId; });
+    var est = (r&&r.estado||'pendiente').toLowerCase();
+    if(est==='pendiente') {
+      await db('PATCH','requisiciones?id=eq.'+reqId,{ estado:'en comparativa' });
+    }
+    showToast('✅ Cotización agregada a la comparativa');
+    // Restaurar botón al modo normal
+    btn.onclick = function(){ saveCotizacion(); };
+    btn.textContent='Guardar cotización'; btn.disabled=false;
+    closeSheet('cotizar');
+    await loadData();
+    renderContent();
+    verDetalle(reqId);
+  } catch(e) {
+    showToast('Error: '+e.message,true);
+    btn.textContent='Guardar cotización'; btn.disabled=false;
+  }
+}
+
 async function borrarCotizacion(reqId) {
   if(!confirm('¿Borrar esta cotización?\nLa requisición volverá a estado pendiente.')) return;
   try {
