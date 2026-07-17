@@ -757,7 +757,7 @@ async function verDetalle(reqId) {
     html += '</div>';
 
     // Cotización directa (legado) si existe
-  } else if(r.proveedor) {
+  } else if(r.proveedor || parseFloat(r.monto_cotizado||0) > 0) {
     html += '<div class="card" style="margin-bottom:12px">'
       +'<div class="card-label">COTIZACIÓN</div>'
       +'<div style="font-size:15px;font-weight:700">'+escHtml(r.proveedor)+'</div>'
