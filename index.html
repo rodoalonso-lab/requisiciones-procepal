@@ -1888,10 +1888,11 @@ aplicarTemaGuardado();
     <button onclick="sendChatMsg()">↑</button>
   </div>
 </div>
+<style>.chat-conv-item{padding:10px;border-radius:10px;cursor:pointer;background:var(--bg,#0f172a);border:1px solid var(--border,#334155);margin-bottom:6px;transition:background .15s;}.chat-conv-item:hover{background:rgba(77,142,255,.1);border-color:#4D8EFF;}</style>
 <script>
 (function(){
   var CHAT_APP='requisiciones';
-  var _chatOpen=false,_chatLastTs=null,_chatUnread=0,_chatPollInterval=null,_chatAllMsgs=[];
+  var _open=false,_lastTs=null,_unread=0,_poll=null,_msgs=[],_selUser=null,_isAdmin=false,_myName='';
   function _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function toggleChatPanel(){
     _chatOpen=!_chatOpen;
