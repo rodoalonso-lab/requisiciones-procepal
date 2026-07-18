@@ -1884,7 +1884,10 @@ aplicarTemaGuardado();
   <div id="chat-panel-header"><span>💬 Chat del equipo</span><button onclick="toggleChatPanel()">✕</button></div>
   <div id="chat-msgs"></div>
   <div class="chat-input-row">
-    <input id="chat-input" type="text" placeholder="Escribe un mensaje o reporte..." maxlength="500" onkeydown="if(event.key==='Enter')sendChatMsg()">
+    <input type="file" id="chat-img-input" accept="image/*" style="display:none" onchange="uploadChatImg(this)">
+    <button onclick="document.getElementById('chat-img-input').click()" title="Adjuntar imagen"
+      style="background:none;border:1px solid var(--border,#334155);border-radius:8px;padding:6px 8px;cursor:pointer;font-size:16px;flex-shrink:0;color:var(--dim,#64748b)">📎</button>
+    <input id="chat-input" type="text" placeholder="Mensaje o reporte..." maxlength="500" onkeydown="if(event.key==='Enter')sendChatMsg()">
     <button onclick="sendChatMsg()">↑</button>
   </div>
 </div>
