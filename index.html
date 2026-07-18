@@ -1858,5 +1858,57 @@ aplicarTemaGuardado();
   </div>
   <div id="pdf-doc"></div>
 </div>
+
+<!-- CHAT WIDGET -->
+<style>
+#chat-bubble{position:fixed;bottom:24px;right:24px;z-index:9999;width:52px;height:52px;border-radius:50%;background:var(--accent,#4D8EFF);color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(77,142,255,.45);border:none;transition:transform .15s;user-select:none;}
+#chat-bubble:hover{transform:scale(1.08);}
+#chat-unread{position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;padding:0 4px;display:none;align-items:center;justify-content:center;border:2px solid var(--bg,#0f172a);}
+#chat-panel{position:fixed;bottom:86px;right:24px;z-index:9998;width:340px;max-height:480px;background:var(--surface,#1e293b);border:1px solid var(--border,#334155);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.35);display:none;flex-direction:column;overflow:hidden;}
+#chat-panel-header{padding:12px 14px;background:var(--accent,#4D8EFF);color:#fff;display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:14px;flex-shrink:0;}
+#chat-panel-header button{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1;padding:0;}
+#chat-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;max-height:330px;}
+#chat-msgs::-webkit-scrollbar{width:4px;}#chat-msgs::-webkit-scrollbar-thumb{background:var(--border,#334155);border-radius:2px;}
+.chat-msg{max-width:80%;padding:8px 10px;border-radius:10px;font-size:12px;line-height:1.4;}
+.chat-msg.mine{align-self:flex-end;background:var(--accent,#4D8EFF);color:#fff;border-bottom-right-radius:3px;}
+.chat-msg.other{align-self:flex-start;background:var(--bg,#0f172a);color:var(--text,#f1f5f9);border:1px solid var(--border,#334155);border-bottom-left-radius:3px;}
+.chat-msg .msg-meta{font-size:10px;opacity:.7;margin-bottom:2px;}.chat-msg .msg-text{word-break:break-word;}
+.chat-input-row{padding:10px;border-top:1px solid var(--border,#334155);display:flex;gap:8px;flex-shrink:0;}
+.chat-input-row input{flex:1;background:var(--bg,#0f172a);border:1px solid var(--border,#334155);border-radius:8px;padding:8px 10px;color:var(--text,#f1f5f9);font-family:Barlow,sans-serif;font-size:13px;outline:none;}
+.chat-input-row input:focus{border-color:var(--accent,#4D8EFF);}
+.chat-input-row button{background:var(--accent,#4D8EFF);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px;}
+.chat-empty{color:var(--dim,#64748b);font-size:12px;text-align:center;padding:20px 0;}
+</style>
+<button id="chat-bubble" onclick="toggleChatPanel()" title="Chat del equipo">💬<span id="chat-unread"></span></button>
+<div id="chat-panel">
+  <div id="chat-panel-header"><span>💬 Chat del equipo</span><button onclick="toggleChatPanel()">✕</button></div>
+  <div id="chat-msgs"></div>
+  <div class="chat-input-row">
+    <input id="chat-input" type="text" placeholder="Escribe un mensaje o reporte..." maxlength="500" onkeydown="if(event.key==='Enter')sendChatMsg()">
+    <button onclick="sendChatMsg()">↑</button>
+  </div>
+</div>
+<script>
+(function(){
+  var CHAT_APP='requisiciones';
+  var _chatOpen=false,_chatLastTs=null,_chatUnread=0,_chatPollInterval=null,_chatAllMsgs=[];
+  function _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function toggleChatPanel(){
+    _chatOpen=!_chatOpen;
+    var p=document.getElementById('chat-panel');if(p)p.style.display=_chatOpen?'flex':'none';
+    if(_chatOpen){_chatUnread=0;var b=document.getElementById('chat-unread');if(b){b.style.display='none';b.textContent='';}
+      chatLoadMsgs();if(!_chatPollInterval)_chatPollInterval=setInterval(chatPoll,4000);
+      setTimeout(function(){var e=document.getElementById('chat-msgs');if(e)e.scrollTop=e.scrollHeight;},100);
+      setTimeout(function(){var i=document.getElementById('chat-input');if(i)i.focus();},150);}
+  }
+  window.toggleChatPanel=toggleChatPanel;
+  async function chatLoadMsgs(){try{var r=await fetch(SUPABASE_URL+'/rest/v1/chat_mensajes?order=created_at.asc&limit=100',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+(typeof getToken==='function'?getToken():SUPABASE_KEY)}});var m=await r.json();if(!Array.isArray(m))return;_chatAllMsgs=m;if(m.length)_chatLastTs=m[m.length-1].created_at;chatRender();}catch(e){}}
+  async function chatPoll(){try{var since=_chatLastTs||new Date(0).toISOString();var r=await fetch(SUPABASE_URL+'/rest/v1/chat_mensajes?created_at=gt.'+encodeURIComponent(since)+'&order=created_at.asc&limit=50',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+(typeof getToken==='function'?getToken():SUPABASE_KEY)}});var nm=await r.json();if(!Array.isArray(nm)||!nm.length)return;_chatAllMsgs=_chatAllMsgs.concat(nm);_chatLastTs=nm[nm.length-1].created_at;if(!_chatOpen){_chatUnread+=nm.length;var b=document.getElementById('chat-unread');if(b){b.textContent=_chatUnread>9?'9+':_chatUnread;b.style.display='flex';}}else{chatRender();setTimeout(function(){var e=document.getElementById('chat-msgs');if(e)e.scrollTop=e.scrollHeight;},50);}}catch(e){}}
+  function chatRender(){var el=document.getElementById('chat-msgs');if(!el)return;var mu=(typeof currentUser!=='undefined'&&currentUser)?(currentUser.nombre||currentUser.email||'Yo'):'Yo';if(!_chatAllMsgs.length){el.innerHTML='<div class="chat-empty">Sin mensajes aún.<br>¡Sé el primero en escribir!</div>';return;}el.innerHTML=_chatAllMsgs.map(function(m){var im=(m.usuario||'')===mu;var ts=m.created_at?new Date(m.created_at).toLocaleString('es-MX',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';var al=m.app&&m.app!=='general'?' · '+m.app:'';return '<div class="chat-msg '+(im?'mine':'other')+'"><div class="msg-meta">'+(im?'Tú':_esc(m.usuario))+al+' · '+ts+'</div><div class="msg-text">'+_esc(m.mensaje)+'</div></div>';}).join('');el.scrollTop=el.scrollHeight;}
+  async function sendChatMsg(){var inp=document.getElementById('chat-input');if(!inp)return;var txt=(inp.value||'').trim();if(!txt)return;var mu=(typeof currentUser!=='undefined'&&currentUser)?(currentUser.nombre||currentUser.email||'Usuario'):'Usuario';inp.value='';try{var r=await fetch(SUPABASE_URL+'/rest/v1/chat_mensajes',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+(typeof getToken==='function'?getToken():SUPABASE_KEY),'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify({usuario:mu,mensaje:txt,app:CHAT_APP})});var sv=await r.json();if(Array.isArray(sv)&&sv.length){_chatAllMsgs.push(sv[0]);_chatLastTs=sv[0].created_at;chatRender();}}catch(e){inp.value=txt;}}
+  window.sendChatMsg=sendChatMsg;
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){chatLoadMsgs().then(function(){if(!_chatPollInterval)_chatPollInterval=setInterval(chatPoll,4000);});},3000);});
+})();
+</script>
 </body>
 </html>
