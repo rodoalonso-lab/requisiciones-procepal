@@ -1174,6 +1174,20 @@ async function saveCotizacion() {
       tiempo_entrega:document.getElementById('cot-entrega').value.trim(),
       notas_cotizacion:document.getElementById('cot-notas').value.trim()
     });
+    // Guardar precios por item
+    var itemPriceUpdates=[];
+    document.querySelectorAll('.fc-precio-unit').forEach(function(inp){
+      var itemId=inp.dataset.id;if(!itemId)return;
+      var idx=inp.dataset.idx;
+      var descEl=document.querySelector('.fc-desc-pct[data-idx="'+idx+'"]');
+      var ivaEl=document.querySelector('.fc-iva-sel[data-idx="'+idx+'"]');
+      itemPriceUpdates.push(db('PATCH','requisicion_items?id=eq.'+itemId,{
+        precio_unitario:parseFloat(inp.value)||null,
+        descuento_pct:descEl?parseFloat(descEl.value)||0:0,
+        iva_pct:ivaEl?parseFloat(ivaEl.value)||16:16
+      }));
+    });
+    if(itemPriceUpdates.length)await Promise.all(itemPriceUpdates);
     // WhatsApp to director
     var r = reqData.find(function(x){ return x.id===reqId; });
     var obra = obrasData.find(function(o){ return o.id===(r&&r.obra_id); });
