@@ -1174,17 +1174,22 @@ async function saveCotizacion() {
       tiempo_entrega:document.getElementById('cot-entrega').value.trim(),
       notas_cotizacion:document.getElementById('cot-notas').value.trim()
     });
-    // Guardar precios por item
+    // Guardar precios por item (fetch directo para evitar problemas con db() en PATCH 204)
+    var _tk=typeof getToken==='function'?getToken():SUPABASE_KEY;
+    var _ph={'Content-Type':'application/json','Prefer':'return=minimal','apikey':SUPABASE_KEY,'Authorization':'Bearer '+_tk};
     var itemPriceUpdates=[];
     document.querySelectorAll('.fc-precio-unit').forEach(function(inp){
-      var itemId=inp.dataset.id;if(!itemId)return;
+      var itemId=inp.dataset.id;if(!itemId||itemId==='undefined')return;
       var idx=inp.dataset.idx;
       var descEl=document.querySelector('.fc-desc-pct[data-idx="'+idx+'"]');
       var ivaEl=document.querySelector('.fc-iva-sel[data-idx="'+idx+'"]');
-      itemPriceUpdates.push(db('PATCH','requisicion_items?id=eq.'+itemId,{
-        precio_unitario:parseFloat(inp.value)||null,
-        descuento_pct:descEl?parseFloat(descEl.value)||0:0,
-        iva_pct:ivaEl?parseFloat(ivaEl.value)||16:16
+      itemPriceUpdates.push(fetch(SUPABASE_URL+'/rest/v1/requisicion_items?id=eq.'+encodeURIComponent(itemId),{
+        method:'PATCH',headers:_ph,
+        body:JSON.stringify({
+          precio_unitario:parseFloat(inp.value)||null,
+          descuento_pct:descEl?parseFloat(descEl.value)||0:0,
+          iva_pct:ivaEl?parseFloat(ivaEl.value)||16:16
+        })
       }));
     });
     if(itemPriceUpdates.length)await Promise.all(itemPriceUpdates);
