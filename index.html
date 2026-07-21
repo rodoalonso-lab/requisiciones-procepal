@@ -1939,7 +1939,7 @@ aplicarTemaGuardado();
     var msgs=_msgs.filter(function(m){return(!_isAdminMsg(m)&&m.usuario===person)||(_isAdminMsg(m)&&m.para===person);});
     var hdr='<div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--border,#334155);margin-bottom:10px;flex-shrink:0"><button onclick="window._chatBack()" style="background:none;border:none;color:#4D8EFF;cursor:pointer;font-size:20px;padding:0;line-height:1">&#8249;</button><strong style="font-size:13px">'+_e(person)+'</strong></div>';
     if(!msgs.length){el.innerHTML=hdr+'<div class="chat-empty">Sin mensajes todavía.</div>';return;}
-    el.innerHTML=hdr+msgs.map(function(m){return _mb(m,_isAdminMsg(m),_isAdminMsg(m)?'Tú':m.usuario);}).join('');el.scrollTop=el.scrollHeight;setTimeout(function(){var i=document.getElementById('chat-input');if(i)i.focus();},100);_markRead('usuario=eq.'+encodeURIComponent(person)+'&para=is.null',function(m){return m.usuario===person&&!m.para;});
+    el.innerHTML=hdr+msgs.map(function(m){return _mb(m,_isAdminMsg(m),_isAdminMsg(m)?'Tú':m.usuario);}).join('');el.scrollTop=el.scrollHeight;setTimeout(function(){var i=document.getElementById('chat-input');if(i)i.focus();},100);try{localStorage.setItem('_cr_'+CHAT_APP+'_'+person,new Date().toISOString());}catch(e){}_markRead('usuario=eq.'+encodeURIComponent(person)+'&para=is.null',function(m){return m.usuario===person&&!m.para;});
   }
   window._chatConv=function(p){_selUser=p;_renderConv(p);};
   window._chatBack=function(){_selUser=null;_renderInbox();};
