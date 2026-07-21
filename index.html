@@ -1926,7 +1926,7 @@ aplicarTemaGuardado();
   function _renderInbox(){
     var el=document.getElementById('chat-msgs');if(!el)return;
     var ir=document.querySelector('.chat-input-row');if(ir)ir.style.display='none';
-    var map={};_msgs.forEach(function(m){var p=_isAdminMsg(m)?m.para:m.usuario;if(!p)return;if(!map[p])map[p]={last:'',ts:'',unread:0};map[p].last=m.imagen_url?'📷 Imagen':(m.mensaje||'');map[p].ts=m.created_at;if(!_isAdminMsg(m)&&!m.leido_at)map[p].unread++;});
+    var map={};_msgs.forEach(function(m){var p=_isAdminMsg(m)?m.para:m.usuario;if(!p)return;if(!map[p]){var _lr=null;try{_lr=localStorage.getItem('_cr_'+CHAT_APP+'_'+p);}catch(e){}map[p]={last:'',ts:'',unread:0,_lr:_lr};}map[p].last=m.imagen_url?'📷 Imagen':(m.mensaje||'');map[p].ts=m.created_at;if(!_isAdminMsg(m)&&(!map[p]._lr||m.created_at>map[p]._lr))map[p].unread++;});
     var people=Object.keys(map).sort(function(a,b){return new Date(map[b].ts)-new Date(map[a].ts);});
     if(!people.length){el.innerHTML='<div class="chat-empty">Sin mensajes aún.<br>Tu equipo te escribirá aquí.</div>';return;}
     el.innerHTML=people.map(function(p){var c=map[p];var ts=c.ts?new Date(c.ts).toLocaleString('es-MX',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
