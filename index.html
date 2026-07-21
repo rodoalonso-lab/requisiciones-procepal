@@ -986,14 +986,17 @@ async function abrirCotizar(reqId, reEditar) {
     itemsHtml = items.map(function(it,i){
       var nom = it.nombre_material||it.material||it.descripcion||'—';
       var cant = it.cantidad||0;
+      var ivaPctItem = (it.iva_pct!==null&&it.iva_pct!==undefined) ? it.iva_pct : 16;
+      var precioVal = (it.precio_unitario!==null&&it.precio_unitario!==undefined) ? it.precio_unitario : '';
+      var descPctVal = (it.descuento_pct!==null&&it.descuento_pct!==undefined) ? it.descuento_pct : 0;
       return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">'
         +'<div style="margin-bottom:10px"><div style="font-size:13px;font-weight:700">'+nom+'</div>'
         +'<div style="font-size:11px;color:var(--dim)">Cant: '+cant+' '+(it.unidad||'pza')+'</div></div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
         +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">PRECIO UNIT. ($)</div>'
-        +'<input class="form-input fc-precio-unit" type="number" placeholder="0.00" data-idx="'+i+'" data-cant="'+cant+'" oninput="calcCotTotal()" style="padding:8px 10px"></div>'
+        +'<input class="form-input fc-precio-unit" type="number" placeholder="0.00" data-idx="'+i+'" data-id="'+it.id+'" data-cant="'+cant+'" value="'+precioVal+'" oninput="calcCotTotal()" style="padding:8px 10px"></div>'
         +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">% DESCUENTO</div>'
-        +'<input class="form-input fc-desc-pct" type="number" placeholder="0" min="0" max="100" data-idx="'+i+'" oninput="calcCotTotal()" style="padding:8px 10px"></div>'
+        +'<input class="form-input fc-desc-pct" type="number" placeholder="0" min="0" max="100" data-idx="'+i+'" value="'+descPctVal+'" oninput="calcCotTotal()" style="padding:8px 10px"></div>'
         +'</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
         +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">DESCUENTO ($)</div>'
@@ -1004,7 +1007,9 @@ async function abrirCotizar(reqId, reEditar) {
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
         +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">IVA (%)</div>'
         +'<select class="form-input fc-iva-sel" data-idx="'+i+'" oninput="calcCotTotal()" style="padding:8px 10px">'
-        +'<option value="0">Sin IVA</option><option value="16" selected>16%</option><option value="8">8% frontera</option>'
+        +'<option value="0"'+(ivaPctItem==0?' selected':'')+'>Sin IVA</option>'
+        +'<option value="16"'+(ivaPctItem==16?' selected':'')+'>16%</option>'
+        +'<option value="8"'+(ivaPctItem==8?' selected':'')+'>8% frontera</option>'
         +'</select></div>'
         +'<div><div style="font-size:10px;color:var(--dim);font-weight:700;margin-bottom:4px">TOTAL C/IVA</div>'
         +'<div id="cot-iva-'+i+'" style="font-size:14px;font-weight:800;color:#5BC4C0;padding:10px 0">$0</div></div>'
