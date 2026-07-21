@@ -1019,6 +1019,7 @@ async function abrirCotizar(reqId, reEditar) {
     itemsHtml = '<div class="item-sub" style="margin-bottom:12px">Sin materiales registrados</div>';
   }
   document.getElementById('cot-items-wrap').innerHTML = itemsHtml;
+  if(reEditar) calcCotTotal();
   openSheet('cotizar');
 }
 
