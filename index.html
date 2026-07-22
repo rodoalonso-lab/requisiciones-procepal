@@ -730,7 +730,7 @@ async function verDetalle(reqId) {
   var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
   var isDir = currentUser.rol==='admin'||currentUser.rol==='director';
   var isCompras = currentUser.rol==='compras';
-  var puedeCotizar = isCompras || currentUser.rol==='operativo' || currentUser.rol==='capturista';
+  var puedeCotizar = isDir || isCompras || currentUser.rol==='operativo' || currentUser.rol==='capturista';
 
   var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
     +'<div><div style="font-size:20px;font-weight:800">'+fmtFolio(r)+'</div>'
