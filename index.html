@@ -967,6 +967,10 @@ async function saveRequisicion() {
 async function abrirCotizar(reqId, reEditar) {
   document.getElementById('cot-req-id').value=reqId;
   document.getElementById('cot-total-display').textContent='$0';
+  document.querySelector('#sheet-cotizar .sheet-title').textContent=reEditar?'Editar cotización':'Nueva cotización';
+  // Restaurar botón al modo normal por si venía de comparativa
+  var btn=document.getElementById('cot-save-btn');
+  btn.textContent='Guardar cotización';btn.onclick=function(){saveCotizacion();};
   // Pre-fill if editing existing cotización
   if(reEditar) {
     var r = reqData.find(function(x){ return x.id===reqId; });
@@ -1054,6 +1058,7 @@ async function abrirAgregarComparativa(reqId) {
   // Reutilizar el sheet de cotizar pero en modo "comparativa"
   document.getElementById('cot-req-id').value = reqId;
   document.getElementById('cot-total-display').textContent = '$0';
+  document.querySelector('#sheet-cotizar .sheet-title').textContent = 'Agregar cotización de proveedor';
   document.getElementById('cot-proveedor').value = '';
   document.getElementById('cot-entrega').value = '';
   document.getElementById('cot-notas').value = '';
@@ -1113,10 +1118,10 @@ async function saveComparativa(reqId) {
       notas: document.getElementById('cot-notas').value.trim()||null,
       seleccionado: false
     });
-    // Asegurar que el estado sea 'en comparativa' si no tenía ganador
+    // Asegurar que el estado sea 'en comparativa'
     var r = reqData.find(function(x){ return x.id===reqId; });
     var est = (r&&r.estado||'pendiente').toLowerCase();
-    if(est==='pendiente') {
+    if(est==='pendiente' || est==='cotizada') {
       await db('PATCH','requisiciones?id=eq.'+reqId,{ estado:'en comparativa' });
     }
     showToast('✅ Cotización agregada a la comparativa');
