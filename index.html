@@ -806,8 +806,8 @@ async function verDetalle(reqId) {
   if(isDir && (est==='cotizada' || est==='en comparativa')) {
     html += '<div style="background:rgba(91,196,192,.08);border:1px solid rgba(91,196,192,.25);border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px;color:#5BC4C0">🔧 Para autorizar o rechazar esta requisición, usa <b>Metalek</b></div>';
   }
-  if(puedeCotizar && (est==='pendiente' || est==='en comparativa')) {
-    if(comparativas.length === 0) {
+  if(puedeCotizar && est!=='autorizada' && est!=='comprada' && est!=='recibida') {
+    if(comparativas.length === 0 && !r.proveedor) {
       html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirCotizar(\''+reqId+'\')">💰 Cotizar</button>';
     }
     html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirAgregarComparativa(\''+reqId+'\')">➕ Agregar cotización de proveedor</button>';
