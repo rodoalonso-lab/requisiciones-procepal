@@ -952,7 +952,7 @@ async function saveRequisicion() {
       +'🗂 Partida: '+({'MATERIAL':'📦 Material','MANO_DE_OBRA':'👷 Mano de Obra','EQUIPO':'🚜 Equipo','SUBCONTRATO':'🤝 Subcontrato','INDIRECTO':'🏢 Indirecto','OTRO':'📎 Otro'}[payload.partida]||payload.partida)+'\n'
       +'📦 Materiales:\n'
       +validos.map(function(it,i){ return (i+1)+'. '+it.descripcion.trim()+' - '+it.cantidad+' '+(it.unidad||'pza'); }).join('\n');
-    var waUrl = 'https://wa.me/524498043514?text='+encodeURIComponent(msg);
+    var waUrl = 'https://wa.me/?text='+encodeURIComponent(msg);
     await guardarMaterialesFrecuentes(validos);
     showToast('✅ Requisición enviada');
     closeSheet('nueva');
@@ -1211,7 +1211,7 @@ async function saveCotizacion() {
     closeSheet('cotizar');
     await loadData();
     renderContent();
-    setTimeout(function(){ window.open('https://wa.me/524498043514?text='+encodeURIComponent(msg),'_blank'); },800);
+    setTimeout(function(){ window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank'); },800);
   } catch(e){ showToast('Error',true); }
   btn.textContent='Guardar cotización'; btn.disabled=false;
 }
