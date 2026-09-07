@@ -1581,10 +1581,9 @@ async function abrirEditar(reqId) {
   var items = [];
   try { items = await db('GET','requisicion_items?select=*&requisicion_id=eq.'+reqId) || []; } catch(e){}
 
-  // Populate obra select
-  var misObras = currentUser.tipo==='trabajador'
-    ? (currentUser.todos_proyectos ? obrasData : obrasData.filter(function(o){ return o.id===currentUser.obra_id; }))
-    : obrasData;
+  // Populate obra select — se conserva la obra de la requisición aunque ya
+  // no esté activa, para no cambiársela sin querer al guardar
+  var misObras = obrasParaSelect(r.obra_id);
   var sel = document.getElementById('edit-obra');
   sel.innerHTML = misObras.map(function(o){ return '<option value="'+o.id+'"'+(o.id===r.obra_id?' selected':'')+'>'+o.nombre+'</option>'; }).join('');
 
