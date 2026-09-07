@@ -835,12 +835,32 @@ async function verDetalle(reqId) {
   openSheet('detalle');
 }
 
+// ── OBRAS QUE PUEDEN RECIBIR REQUISICIONES ─────────────
+// Se filtra por EXCLUSIÓN, no por inclusión. Hay obras con el estado en
+// blanco que sí están activas; si se pidiera "sólo En progreso"
+// desaparecerían del listado y nadie podría requisitar para ellas.
+// Lo que sí se saca son las cotizaciones — obras que todavía no se ganan —
+// y las que ya cerraron.
+var ESTADOS_FUERA = ['cotizacion','cotización','perdida','perdido','cancelada',
+                     'cancelado','terminada','terminado','cerrada','cerrado'];
+function obraActiva(o){
+  var e = String(o && o.estado || '').trim().toLowerCase();
+  return ESTADOS_FUERA.indexOf(e) < 0;
+}
+// 'incluir' fuerza que aparezca una obra concreta aunque ya no esté activa:
+// al editar una requisición vieja, su obra debe seguir en la lista o al
+// guardar se cambiaría sola a otra.
+function obrasParaSelect(incluir){
+  var base = currentUser.tipo==='trabajador'
+    ? (currentUser.todos_proyectos ? obrasData : obrasData.filter(function(o){ return o.id===currentUser.obra_id; }))
+    : obrasData;
+  return base.filter(function(o){ return obraActiva(o) || (incluir && o.id===incluir); });
+}
+
 // ── NUEVA REQUISICIÓN ──────────────────────────────────
 function abrirNueva() {
   rqItems = [];
-  var misObras = currentUser.tipo==='trabajador'
-    ? (currentUser.todos_proyectos ? obrasData : obrasData.filter(function(o){ return o.id===currentUser.obra_id; }))
-    : obrasData;
+  var misObras = obrasParaSelect();
   var sel = document.getElementById('rq-obra');
   sel.innerHTML = misObras.map(function(o){ return '<option value="'+o.id+'">'+o.nombre+'</option>'; }).join('');
   document.getElementById('rq-urgencia').value='media';
