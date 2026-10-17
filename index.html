@@ -909,6 +909,9 @@ function abrirNueva() {
   document.getElementById('rq-notas').value='';
   // Auto-fill solicitante
   document.getElementById('rq-solicitante').value = currentUser.nombre||'';
+  var ti = document.getElementById('rq-tipo-insumo');
+  if(ti) ti.style.borderColor = '';
+  llenarTipoInsumo();          // se llena segun la partida seleccionada
   renderItemsForm();
   openSheet('nueva');
 }
