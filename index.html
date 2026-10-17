@@ -972,6 +972,19 @@ async function saveRequisicion() {
   if(!rqItems.length) { showToast('Agrega al menos un material',true); return; }
   var validos = rqItems.filter(function(it){ return it.descripcion.trim(); });
   if(!validos.length) { showToast('Escribe la descripción del material',true); return; }
+
+  // Tipo de insumo obligatorio. Lo elige quien requisita porque es quien
+  // sabe que esta pidiendo; el que autoriza lo ve ya puesto y lo corrige
+  // si hace falta.
+  var tiEl = document.getElementById('rq-tipo-insumo');
+  var tipoInsumoVal = tiEl ? tiEl.value : null;
+  if(tiEl && !tipoInsumoVal){
+    tiEl.style.borderColor = '#EF4444';
+    tiEl.focus();
+    showToast('Elige el tipo de insumo', true);
+    return;
+  }
+  if(tiEl) tiEl.style.borderColor = '';
   var btn = document.getElementById('rq-save-btn');
   if(btn.disabled) return; // evitar doble envío
   btn.textContent='Enviando...'; btn.disabled=true;
