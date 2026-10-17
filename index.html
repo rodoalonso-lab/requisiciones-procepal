@@ -239,7 +239,7 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
     </div>
     <div class="form-group">
       <label class="form-label">Partida presupuestal *</label>
-      <select class="form-input" id="rq-partida">
+      <select class="form-input" id="rq-partida" onchange="llenarTipoInsumo()">
         <option value="MATERIAL">📦 Material</option>
         <option value="MANO_DE_OBRA">👷 Mano de Obra</option>
         <option value="EQUIPO">🚜 Equipo</option>
@@ -247,6 +247,16 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
         <option value="INDIRECTO">🏢 Indirecto</option>
         <option value="OTRO">📎 Otro</option>
       </select>
+    </div>
+    <!-- Tipo de insumo: lo elige quien requisita, que es quien sabe que
+         esta pidiendo. Se filtra por la partida de arriba para que sean
+         dos clics y no una decision. -->
+    <div class="form-group">
+      <label class="form-label">Tipo de insumo *</label>
+      <select class="form-input" id="rq-tipo-insumo"></select>
+      <div style="font-size:11px;color:var(--dim);margin-top:5px">
+        Con esto la compra se compara contra lo presupuestado de la obra.
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Fecha requerida</label>
@@ -313,6 +323,37 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
 <!-- Librería compartida Procepal: SUPABASE_URL/KEY, db(), getToken(), fmt(), fmtDate(), showToast(), uploadStorage() -->
 <script src="https://rodoalonso-lab.github.io/metaltek/procepal-lib.js"></script>
 <script>
+
+// ── Tipo de insumo ───────────────────────────────────────────────────
+// Catalogo fino dentro de la partida. Es lo que permite comparar la compra
+// contra el presupuesto de la obra; sin el, todo cae en "sin clasificar".
+var tiposInsumoData = [];
+async function cargarTiposInsumo(){
+  if(tiposInsumoData.length) return tiposInsumoData;
+  try { tiposInsumoData = await db('GET','cat_tipo_insumo?activo=is.true&order=orden') || []; }
+  catch(e){ tiposInsumoData = []; }
+  return tiposInsumoData;
+}
+async function llenarTipoInsumo(){
+  var sel = document.getElementById('rq-tipo-insumo');
+  if(!sel) return;
+  await cargarTiposInsumo();
+  var pEl = document.getElementById('rq-partida');
+  var p = pEl ? String(pEl.value||'').toUpperCase() : '';
+  var previo = sel.value;
+  var opts = tiposInsumoData.filter(function(t){
+    return !p || String(t.partida||'').toUpperCase() === p; });
+  if(!opts.length) opts = tiposInsumoData;
+  sel.innerHTML = '<option value="">— elige el tipo —</option>';
+  opts.forEach(function(t){
+    var o = document.createElement('option');
+    o.value = t.clave; o.textContent = t.nombre;
+    sel.appendChild(o);
+  });
+  // si solo hay uno, se elige solo: no tiene caso preguntar
+  if(opts.length === 1) sel.value = opts[0].clave;
+  else if(previo && opts.some(function(t){ return t.clave===previo; })) sel.value = previo;
+}
 // SUPABASE_URL, SUPABASE_KEY, db(), showToast() → de procepal-lib.js
 
 // ═══════════════════════════════════════════════════════════
@@ -950,7 +991,8 @@ async function saveRequisicion() {
       notas: document.getElementById('rq-notas').value.trim(),
       estado: 'pendiente',
       tipo: (currentUser.rol==='taller') ? 'taller' : 'campo',
-      partida: document.getElementById('rq-partida').value || 'MATERIAL'
+      partida: document.getElementById('rq-partida').value || 'MATERIAL',
+      tipo_insumo: tipoInsumoVal
     };
     var rows = await db('POST','requisiciones',payload);
     var reqId = rows[0].id;
