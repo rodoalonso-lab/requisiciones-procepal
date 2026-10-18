@@ -882,11 +882,18 @@ async function verDetalle(reqId) {
 // desaparecerían del listado y nadie podría requisitar para ellas.
 // Lo que sí se saca son las cotizaciones — obras que todavía no se ganan —
 // y las que ya cerraron.
-var ESTADOS_FUERA = ['cotizacion','cotización','perdida','perdido','cancelada',
-                     'cancelado','terminada','terminado','cerrada','cerrado'];
+// Se filtra por lista POSITIVA, no por exclusion. La version anterior
+// excluia 'terminada' y 'cerrada', pero el valor real en la base es
+// 'Completada', asi que las cuatro obras terminadas seguian apareciendo en
+// el selector. Con lista positiva, lo que no esta previsto no entra: es el
+// lado seguro del error.
+// Misma lista que usan Metaltek y Finanzas, para que las tres apps
+// coincidan en que obra esta viva.
+var ESTADOS_EN_CURSO = ['en progreso','iniciando','por iniciar','pausada'];
 function obraActiva(o){
-  var e = String(o && o.estado || '').trim().toLowerCase();
-  return ESTADOS_FUERA.indexOf(e) < 0;
+  if(!o || o.archivada) return false;
+  var e = String(o.estado || '').trim().toLowerCase();
+  return ESTADOS_EN_CURSO.indexOf(e) >= 0;
 }
 // 'incluir' fuerza que aparezca una obra concreta aunque ya no esté activa:
 // al editar una requisición vieja, su obra debe seguir en la lista o al
