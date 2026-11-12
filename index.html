@@ -865,6 +865,20 @@ async function verDetalle(reqId) {
       +'<button class="btn-danger" style="flex:1;font-size:13px" onclick="borrarCotizacion(\''+reqId+'\')">🗑 Borrar</button>'
       +'</div>';
   }
+  // Forma de pago: visible en el detalle para que al autorizar no haya
+  // que abrir la cotizacion para saber si lleva transferencia.
+  if(r.proveedor || comparativas.length){
+    var _fp = (r.forma_pago || 'transferencia');
+    var _fpTxt = _fp==='tarjeta' ? '💳 Tarjeta' : _fp==='efectivo' ? '💵 Efectivo' : '🏦 Transferencia';
+    var _fpCol = _fp==='transferencia' ? '#5BC4C0' : '#A78BFA';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">'
+      +'<span style="font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.5px">FORMA DE PAGO</span>'
+      +'<span style="font-size:12px;font-weight:800;color:'+_fpCol+'">'+_fpTxt+'</span></div>';
+    if(_fp==='transferencia' && r.pago_clabe){
+      html += '<div style="font-size:11px;color:var(--dim);margin-top:4px;text-align:right">'
+        +(r.pago_banco?r.pago_banco+' · ':'')+'CLABE '+String(r.pago_clabe).slice(-4).padStart(8,'•')+'</div>';
+    }
+  }
   html += '</div>';
 
   // CxP vinculada
