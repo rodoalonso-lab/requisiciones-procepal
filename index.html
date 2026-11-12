@@ -924,7 +924,7 @@ function abrirNueva() {
 }
 
 function agregarItemForm() {
-  rqItems.push({descripcion:'',especificaciones:'',cantidad:'',unidad:'pza'});
+  rqItems.push({descripcion:'',especificaciones:'',cantidad:'',unidad:'pza',precio_unitario:''});
   renderItemsForm();
 }
 
@@ -966,11 +966,31 @@ function renderItemsForm() {
       +'<div class="autocomplete-list" id="mat-list-'+i+'" style="display:none"></div>'
       +'</div>'
       +'<input class="form-input" placeholder="Especificaciones (opcional)" value="'+escHtml(it.especificaciones)+'" oninput="rqItems['+i+'].especificaciones=this.value" style="margin-bottom:8px">'
-      +'<div style="display:flex;gap:8px">'
-      +'<input class="form-input" type="number" placeholder="Cant." value="'+it.cantidad+'" oninput="rqItems['+i+'].cantidad=this.value" style="flex:1">'
+      +'<div style="display:flex;gap:8px;margin-bottom:8px">'
+      +'<input class="form-input" type="number" placeholder="Cant. *" value="'+it.cantidad+'" oninput="rqItems['+i+'].cantidad=this.value;recalcItem('+i+')" style="flex:1">'
       +_unidadOptions(it.unidad, 'var v=this.value;if(v===\'__nueva__\'){agregarUnidad(this,function(n){rqItems['+i+'].unidad=n;renderItemsForm();});}else{rqItems['+i+'].unidad=v;}')
+      +'</div>'
+      // Precio unitario obligatorio: sin el, la requisicion se autoriza por
+      // monto global y despues no hay forma de saber que se compro ni a que
+      // precio. Pasaba en 35 de las autorizadas.
+      +'<div style="display:flex;gap:8px;align-items:center">'
+      +'<input class="form-input" type="number" step="0.01" placeholder="Precio unitario *" value="'+(it.precio_unitario||'')+'" oninput="rqItems['+i+'].precio_unitario=this.value;recalcItem('+i+')" style="flex:1">'
+      +'<div id="imp-'+i+'" style="flex:1;text-align:right;font-size:12px;font-weight:700;color:var(--dim);white-space:nowrap">'+_impItem(it)+'</div>'
       +'</div></div>';
   }).join('');
+}
+
+function _impItem(it){
+  var c = parseFloat(it.cantidad)||0, p = parseFloat(it.precio_unitario)||0;
+  return (c&&p) ? '= $'+(c*p).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+}
+function recalcItem(i){
+  var el = document.getElementById('imp-'+i);
+  if(el) el.textContent = _impItem(rqItems[i]||{});
+  var tot = rqItems.reduce(function(a,it){
+    return a + (parseFloat(it.cantidad)||0)*(parseFloat(it.precio_unitario)||0); },0);
+  var t = document.getElementById('rq-total-est');
+  if(t) t.textContent = tot ? 'Estimado: $'+tot.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
 }
 
 function eliminarItem(i) {
@@ -986,6 +1006,17 @@ async function saveRequisicion() {
   // Tipo de insumo obligatorio. Lo elige quien requisita porque es quien
   // sabe que esta pidiendo; el que autoriza lo ve ya puesto y lo corrige
   // si hace falta.
+  // Cantidad y precio unitario obligatorios en cada renglon.
+  for(var vi=0; vi<validos.length; vi++){
+    var v = validos[vi];
+    if(!(parseFloat(v.cantidad)>0)){
+      showToast('Falta la cantidad de "'+(v.descripcion||'').slice(0,28)+'"', true); return;
+    }
+    if(!(parseFloat(v.precio_unitario)>0)){
+      showToast('Falta el precio unitario de "'+(v.descripcion||'').slice(0,28)+'"', true); return;
+    }
+  }
+
   var tiEl = document.getElementById('rq-tipo-insumo');
   var tipoInsumoVal = tiEl ? tiEl.value : null;
   if(tiEl && !tipoInsumoVal){
