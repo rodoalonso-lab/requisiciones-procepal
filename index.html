@@ -1000,6 +1000,47 @@ function renderItemsForm() {
   }).join('');
 }
 
+// ── DATOS BANCARIOS DEL PROVEEDOR ────────────────────────────────────
+// Se capturan al cargar la cotizacion y se guardan por proveedor. La
+// siguiente compra al mismo proveedor ya los trae.
+async function autollenarBanco(){
+  var prov = (document.getElementById('cot-proveedor')||{}).value || '';
+  var org  = document.getElementById('cot-banco-origen');
+  var set  = function(id,v){ var e=document.getElementById(id); if(e && !e.value) e.value = v||''; };
+  if(!prov.trim()){ if(org) org.textContent=''; return; }
+  try {
+    var rows = await db('GET','proveedores_bancos?proveedor=eq.'+encodeURIComponent(prov.trim())+'&limit=1');
+    var b = rows && rows[0];
+    if(b){
+      set('cot-titular', b.titular); set('cot-banco', b.banco);
+      set('cot-cuenta', b.cuenta);   set('cot-clabe', b.clabe);
+      if(org) org.textContent = 'ya los teníamos de este proveedor';
+    } else if(org){
+      org.textContent = 'proveedor nuevo: se van a guardar';
+    }
+  } catch(e){}
+}
+
+async function guardarBancoProveedor(proveedor, b){
+  if(!proveedor) return;
+  if(!b.titular && !b.banco && !b.clabe && !b.cuenta) return;
+  // db() no acepta cabeceras (su 4o argumento son reintentos), asi que no
+  // se puede usar el upsert de PostgREST: se consulta y luego PATCH o POST.
+  try {
+    var datos = { titular:b.titular||null, banco:b.banco||null,
+                  cuenta:b.cuenta||null, clabe:b.clabe||null,
+                  updated_at:new Date().toISOString() };
+    var pv = encodeURIComponent(proveedor);
+    var ex = await db('GET','proveedores_bancos?proveedor=eq.'+pv+'&select=id&limit=1');
+    if(ex && ex.length) await db('PATCH','proveedores_bancos?proveedor=eq.'+pv, datos);
+    else {
+      datos.proveedor = proveedor;
+      datos.created_by = currentUser ? currentUser.nombre : null;
+      await db('POST','proveedores_bancos', datos);
+    }
+  } catch(e){ /* el catalogo es comodidad, no debe tumbar la cotizacion */ }
+}
+
 function _impItem(it){
   var c = parseFloat(it.cantidad)||0, p = parseFloat(it.precio_unitario)||0;
   return (c&&p) ? '= $'+(c*p).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
@@ -1251,9 +1292,23 @@ async function saveComparativa(reqId) {
   var entrega = document.getElementById('cot-entrega').value.trim();
   if(!proveedor) { showToast('Ingresa el proveedor',true); return; }
   if(!monto) { showToast('Ingresa al menos un precio',true); return; }
+  var _cv = function(id){ var e=document.getElementById(id); return e? e.value.trim() : ''; };
+  var banco = { titular:_cv('cot-titular'), banco:_cv('cot-banco'),
+                cuenta:_cv('cot-cuenta'), clabe:_cv('cot-clabe').replace(/\D/g,'') };
+  // La CLABE son 18 digitos. Atajarlo aqui evita el rechazo del banco el dia
+  // del pago, que es cuando ya nadie se acuerda de donde salio el dato.
+  if(banco.clabe && banco.clabe.length!==18){
+    var av=document.getElementById('cot-clabe-aviso');
+    if(av){ av.textContent='La CLABE debe tener 18 dígitos (lleva '+banco.clabe.length+').'; av.style.display=''; }
+    var ce=document.getElementById('cot-clabe'); if(ce) ce.focus();
+    return;
+  }
+  var av2=document.getElementById('cot-clabe-aviso'); if(av2) av2.style.display='none';
+
   var btn = document.getElementById('cot-save-btn');
   btn.textContent='Guardando...'; btn.disabled=true;
   try {
+    await guardarBancoProveedor(proveedor, banco);
     await db('POST','comparativas',{
       requisicion_id: reqId,
       proveedor: proveedor,
