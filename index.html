@@ -296,7 +296,8 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
     <input type="hidden" id="cot-ivapct-hidden" value="0">
     <div class="form-group">
       <label class="form-label">Proveedor *</label>
-      <input class="form-input" id="cot-proveedor" type="text" placeholder="Nombre del proveedor">
+      <input class="form-input" id="cot-proveedor" type="text" placeholder="Nombre del proveedor"
+             onblur="autollenarBanco()">
     </div>
     <div class="card-label" style="margin-bottom:10px">PRECIOS POR MATERIAL</div>
     <div id="cot-items-wrap" style="margin-bottom:12px"></div>
@@ -311,6 +312,25 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
     <div class="form-group">
       <label class="form-label">Notas</label>
       <textarea class="form-input" id="cot-notas" placeholder="Condiciones, descuentos..."></textarea>
+    </div>
+    <!-- Datos de pago: los captura quien carga la cotizacion, que es quien
+         tiene el correo del proveedor enfrente. Se guardan por proveedor,
+         asi que la segunda vez ya vienen llenos. -->
+    <div class="form-group">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <label class="form-label" style="margin:0">Datos de pago del proveedor</label>
+        <span id="cot-banco-origen" style="font-size:10px;color:var(--dim)"></span>
+      </div>
+      <input class="form-input" id="cot-titular" placeholder="Titular de la cuenta" style="margin-top:6px">
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input class="form-input" id="cot-banco" placeholder="Banco" style="flex:1">
+        <input class="form-input" id="cot-cuenta" placeholder="Cuenta" style="flex:1">
+      </div>
+      <input class="form-input" id="cot-clabe" placeholder="CLABE (18 dígitos)" inputmode="numeric" style="margin-top:8px">
+      <div id="cot-clabe-aviso" style="font-size:11px;color:#EF4444;margin-top:5px;display:none"></div>
+      <div style="font-size:11px;color:var(--dim);margin-top:5px">
+        Se guardan para este proveedor y se reusan en las siguientes compras.
+      </div>
     </div>
     <button class="btn-primary" id="cot-save-btn" onclick="saveCotizacion()">Guardar cotización</button>
     <button class="btn-secondary" onclick="closeSheet('cotizar')">Cancelar</button>
