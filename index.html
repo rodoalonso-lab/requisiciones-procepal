@@ -873,6 +873,13 @@ async function verDetalle(reqId) {
     }
     html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirAgregarComparativa(\''+reqId+'\')">➕ Agregar cotización de proveedor</button>';
   }
+  // Autorizada: el mensaje de pago sale del telefono de quien la levanto,
+  // no del de quien autoriza. Asi ellos gestionan con el proveedor y la
+  // direccion solo autoriza.
+  if(est==='autorizada' || est==='comprada') {
+    html += '<button class="btn-primary" style="background:#25D366;color:#063;margin-bottom:8px" '+
+            'onclick="enviarPagoWA(\''+reqId+'\')">📲 Enviar pago al proveedor</button>';
+  }
   if(isCompras && est==='autorizada') {
     html += '<button class="btn-primary" style="margin-bottom:8px" onclick="marcarComprada(\''+reqId+'\')">🛒 Marcar como comprada</button>';
     html += '<button class="btn-primary" style="background:#10B981;margin-bottom:8px" onclick="confirmarRecepcion(\''+reqId+'\')">📦 Registrar recepción</button>';
@@ -998,6 +1005,53 @@ function renderItemsForm() {
       +'<div id="imp-'+i+'" style="flex:1;text-align:right;font-size:12px;font-weight:700;color:var(--dim);white-space:nowrap">'+_impItem(it)+'</div>'
       +'</div></div>';
   }).join('');
+}
+
+// ── MENSAJE DE PAGO AL PROVEEDOR ─────────────────────────────────────
+// Se arma con lo autorizado y los datos bancarios guardados. Sale del
+// dispositivo de quien lo toca, que es quien trata con el proveedor.
+async function enviarPagoWA(reqId){
+  var r = reqData.find(function(x){ return x.id===reqId; });
+  if(!r){ showToast('No se encontró la requisición', true); return; }
+  var obra = obrasData.find(function(o){ return o.id===r.obra_id; });
+  var items = [];
+  try { items = await db('GET','requisicion_items?requisicion_id=eq.'+reqId+'&order=created_at') || []; } catch(e){}
+
+  // los datos de pago: primero los de la requisicion, si no los del catalogo
+  var b = { titular:r.pago_titular, banco:r.pago_banco, clabe:r.pago_clabe,
+            cuenta:r.pago_cuenta, referencia:r.pago_referencia };
+  if(!b.clabe && r.proveedor){
+    try {
+      var rows = await db('GET','proveedores_bancos?proveedor=eq.'+encodeURIComponent(r.proveedor)+'&limit=1');
+      if(rows && rows[0]) b = { titular:rows[0].titular, banco:rows[0].banco,
+                                clabe:rows[0].clabe, cuenta:rows[0].cuenta, referencia:null };
+    } catch(e){}
+  }
+
+  var money = function(n){ return '$'+(Number(n)||0).toLocaleString('es-MX',{minimumFractionDigits:2}); };
+  var lineas = items.map(function(it,i){
+    var c = parseFloat(it.cantidad)||0, pu = parseFloat(it.precio_unitario)||0;
+    return (i+1)+'. '+(it.nombre_material||'—')+' — '+c+' '+(it.unidad||'pza')+
+           (pu?' x '+money(pu)+' = '+money(c*pu):'');
+  }).join('\n');
+
+  var msg = '✅ *COMPRA AUTORIZADA*\n'+
+    '*'+fmtFolio(r)+'*'+(obra?' · '+obra.nombre:'')+'\n'+
+    '🏪 '+(r.proveedor||'—')+'\n\n'+
+    (lineas?'📦 *Materiales*\n'+lineas+'\n\n':'')+
+    '💵 Subtotal: '+money(r.monto_cotizado)+'\n'+
+    'IVA: '+money(r.iva_cotizado)+'\n'+
+    '*TOTAL: '+money(r.monto_total_con_iva||r.monto_cotizado)+'*\n'+
+    (b.titular||b.banco||b.clabe
+      ? '\n🏦 *Datos de pago*\n'+
+        (b.titular?'Titular: '+b.titular+'\n':'')+
+        (b.banco?'Banco: '+b.banco+'\n':'')+
+        (b.clabe?'CLABE: '+b.clabe+'\n':'')+
+        (b.cuenta?'Cuenta: '+b.cuenta+'\n':'')+
+        (b.referencia?'Referencia: '+b.referencia+'\n':'')
+      : '\n⚠️ Sin datos bancarios capturados\n');
+
+  window.open('https://wa.me/?text='+encodeURIComponent(msg), '_blank');
 }
 
 // ── DATOS BANCARIOS DEL PROVEEDOR ────────────────────────────────────
