@@ -318,7 +318,7 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
          asi que la segunda vez ya vienen llenos. -->
     <div class="form-group">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <label class="form-label" style="margin:0">Datos de pago del proveedor</label>
+        <label class="form-label" style="margin:0">Datos de pago del proveedor *</label>
         <span id="cot-banco-origen" style="font-size:10px;color:var(--dim)"></span>
       </div>
       <input class="form-input" id="cot-titular" placeholder="Titular de la cuenta" style="margin-top:6px">
@@ -329,7 +329,7 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
       <input class="form-input" id="cot-clabe" placeholder="CLABE (18 dígitos)" inputmode="numeric" style="margin-top:8px">
       <div id="cot-clabe-aviso" style="font-size:11px;color:#EF4444;margin-top:5px;display:none"></div>
       <div style="font-size:11px;color:var(--dim);margin-top:5px">
-        Se guardan para este proveedor y se reusan en las siguientes compras.
+        Obligatorios. Se guardan para este proveedor y se reusan en las siguientes compras.
       </div>
     </div>
     <button class="btn-primary" id="cot-save-btn" onclick="saveCotizacion()">Guardar cotización</button>
@@ -1297,7 +1297,15 @@ async function saveComparativa(reqId) {
                 cuenta:_cv('cot-cuenta'), clabe:_cv('cot-clabe').replace(/\D/g,'') };
   // La CLABE son 18 digitos. Atajarlo aqui evita el rechazo del banco el dia
   // del pago, que es cuando ya nadie se acuerda de donde salio el dato.
-  if(banco.clabe && banco.clabe.length!==18){
+  if(!banco.titular || !banco.banco || !banco.clabe){
+    var avf=document.getElementById('cot-clabe-aviso');
+    if(avf){ avf.textContent='Captura titular, banco y CLABE del proveedor.'; avf.style.display=''; }
+    var pf = !banco.titular ? 'cot-titular' : (!banco.banco ? 'cot-banco' : 'cot-clabe');
+    var pe = document.getElementById(pf); if(pe) pe.focus();
+    showToast('Faltan los datos de pago del proveedor', true);
+    return;
+  }
+  if(banco.clabe.length!==18){
     var av=document.getElementById('cot-clabe-aviso');
     if(av){ av.textContent='La CLABE debe tener 18 dígitos (lleva '+banco.clabe.length+').'; av.style.display=''; }
     var ce=document.getElementById('cot-clabe'); if(ce) ce.focus();
