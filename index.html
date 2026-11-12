@@ -1340,8 +1340,20 @@ async function seleccionarGanador(compId, reqId) {
     // Seleccionar la ganadora
     var comp = await db('PATCH','comparativas?id=eq.'+compId, { seleccionado: true });
     // Obtener el monto del ganador para guardarlo en la req
-    var rows = await db('GET','comparativas?id=eq.'+compId+'&select=precio_unitario,proveedor,tiempo_entrega,notas,forma_pago');
+    var rows = await db('GET','comparativas?id=eq.'+compId+'&select=precio_unitario,proveedor,tiempo_entrega,notas,forma_pago,pago_titular,pago_banco,pago_cuenta,pago_clabe');
     var c = rows && rows[0];
+    // Los datos de pago viajan con la cotizacion ganadora. Si la cotizacion
+    // es vieja y no los trae, se buscan en el catalogo del proveedor: asi la
+    // requisicion llega a autorizacion con la cuenta puesta y no en blanco.
+    var cb = { titular:(c&&c.pago_titular)||null, banco:(c&&c.pago_banco)||null,
+               cuenta:(c&&c.pago_cuenta)||null,   clabe:(c&&c.pago_clabe)||null };
+    if(!cb.clabe && c && c.proveedor){
+      try {
+        var cat = await db('GET','proveedores_bancos?proveedor=eq.'+encodeURIComponent(c.proveedor)+'&limit=1');
+        if(cat && cat[0]) cb = { titular:cat[0].titular, banco:cat[0].banco,
+                                 cuenta:cat[0].cuenta,   clabe:cat[0].clabe };
+      } catch(e){}
+    }
     // Actualizar la req a cotizada con el proveedor ganador
     await db('PATCH','requisiciones?id=eq.'+reqId, {
       estado: 'cotizada',
@@ -1349,7 +1361,11 @@ async function seleccionarGanador(compId, reqId) {
       monto_cotizado: c ? parseFloat(c.precio_unitario||0) : null,
       tiempo_entrega: c ? c.tiempo_entrega : null,
       notas_cotizacion: c ? c.notas : null,
-      forma_pago: (c && c.forma_pago) || 'transferencia'
+      forma_pago: (c && c.forma_pago) || 'transferencia',
+      pago_titular: cb.titular,
+      pago_banco:   cb.banco,
+      pago_cuenta:  cb.cuenta,
+      pago_clabe:   cb.clabe
     });
     showToast('✅ Proveedor seleccionado — requisición lista para autorizar');
     await loadData();
@@ -1448,6 +1464,10 @@ async function saveComparativa(reqId) {
       tiempo_entrega: document.getElementById('cot-entrega').value.trim()||null,
       notas: document.getElementById('cot-notas').value.trim()||null,
       forma_pago: formaPagoComp,
+      pago_titular: banco.titular || null,
+      pago_banco:   banco.banco   || null,
+      pago_cuenta:  banco.cuenta  || null,
+      pago_clabe:   banco.clabe   || null,
       seleccionado: false
     });
     // Asegurar que el estado sea 'en comparativa'
