@@ -873,12 +873,11 @@ async function verDetalle(reqId) {
     }
     html += '<button class="btn-secondary" style="margin-bottom:8px" onclick="closeSheet(\'detalle\');abrirAgregarComparativa(\''+reqId+'\')">➕ Agregar cotización de proveedor</button>';
   }
-  // Autorizada: el mensaje de pago sale del telefono de quien la levanto,
-  // no del de quien autoriza. Asi ellos gestionan con el proveedor y la
-  // direccion solo autoriza.
+  // Autorizada: la solicitud de pago sale del telefono de quien la levanto,
+  // hacia el grupo de pagos. La direccion solo autoriza.
   if(est==='autorizada' || est==='comprada') {
     html += '<button class="btn-primary" style="background:#25D366;color:#063;margin-bottom:8px" '+
-            'onclick="enviarPagoWA(\''+reqId+'\')">📲 Enviar pago al proveedor</button>';
+            'onclick="enviarPagoWA(\''+reqId+'\')">📲 Enviar al grupo de pagos</button>';
   }
   if(isCompras && est==='autorizada') {
     html += '<button class="btn-primary" style="margin-bottom:8px" onclick="marcarComprada(\''+reqId+'\')">🛒 Marcar como comprada</button>';
@@ -1008,8 +1007,8 @@ function renderItemsForm() {
 }
 
 // ── MENSAJE DE PAGO AL PROVEEDOR ─────────────────────────────────────
-// Se arma con lo autorizado y los datos bancarios guardados. Sale del
-// dispositivo de quien lo toca, que es quien trata con el proveedor.
+// Va al grupo interno de pagos, no al proveedor: por eso lleva los datos
+// bancarios completos. Sale del dispositivo de quien lo toca.
 async function enviarPagoWA(reqId){
   var r = reqData.find(function(x){ return x.id===reqId; });
   if(!r){ showToast('No se encontró la requisición', true); return; }
@@ -1035,7 +1034,7 @@ async function enviarPagoWA(reqId){
            (pu?' x '+money(pu)+' = '+money(c*pu):'');
   }).join('\n');
 
-  var msg = '✅ *COMPRA AUTORIZADA*\n'+
+  var msg = '💳 *SOLICITUD DE PAGO*\n'+
     '*'+fmtFolio(r)+'*'+(obra?' · '+obra.nombre:'')+'\n'+
     '🏪 '+(r.proveedor||'—')+'\n\n'+
     (lineas?'📦 *Materiales*\n'+lineas+'\n\n':'')+
