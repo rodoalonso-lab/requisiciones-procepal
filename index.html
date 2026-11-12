@@ -1055,8 +1055,10 @@ async function saveRequisicion() {
       await db('POST','requisicion_items',{
         requisicion_id:reqId,
         nombre_material:it.descripcion.trim(),
+        especificaciones:(it.especificaciones||'').trim()||null,
         cantidad:parseFloat(it.cantidad)||1,
-        unidad:it.unidad||'pza'
+        unidad:it.unidad||'pza',
+        precio_unitario:parseFloat(it.precio_unitario)||null
       });
     }
     // WhatsApp notification
@@ -1067,7 +1069,13 @@ async function saveRequisicion() {
       +(payload.urgencia==='alta'?'🔴 *PRIORIDAD ALTA*\n':payload.urgencia==='baja'?'🟢 Prioridad baja\n':'🟠 Prioridad media\n')
       +'🗂 Partida: '+({'MATERIAL':'📦 Material','MANO_DE_OBRA':'👷 Mano de Obra','EQUIPO':'🚜 Equipo','SUBCONTRATO':'🤝 Subcontrato','INDIRECTO':'🏢 Indirecto','OTRO':'📎 Otro'}[payload.partida]||payload.partida)+'\n'
       +'📦 Materiales:\n'
-      +validos.map(function(it,i){ return (i+1)+'. '+it.descripcion.trim()+' - '+it.cantidad+' '+(it.unidad||'pza'); }).join('\n');
+      +validos.map(function(it,i){
+         var imp=(parseFloat(it.cantidad)||0)*(parseFloat(it.precio_unitario)||0);
+         return (i+1)+'. '+it.descripcion.trim()+' - '+it.cantidad+' '+(it.unidad||'pza')+
+                (imp?' · $'+imp.toLocaleString('es-MX',{minimumFractionDigits:2}):''); }).join('\n')
+      +(function(){ var t=validos.reduce(function(a,it){
+           return a+(parseFloat(it.cantidad)||0)*(parseFloat(it.precio_unitario)||0); },0);
+         return t?'\n\n💰 Estimado: $'+t.toLocaleString('es-MX',{minimumFractionDigits:2}):''; })();
     var waUrl = 'https://wa.me/?text='+encodeURIComponent(msg);
     await guardarMaterialesFrecuentes(validos);
     showToast('✅ Requisición enviada');
