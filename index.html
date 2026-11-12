@@ -1069,6 +1069,36 @@ async function enviarPagoWA(reqId){
   window.open('https://wa.me/?text='+encodeURIComponent(msg), '_blank');
 }
 
+// ── FORMA DE PAGO ────────────────────────────────────────────────────
+// Transferencia necesita CLABE; tarjeta y efectivo no. El selector esconde
+// el bloque bancario para que la requi pueda avanzar sin datos que no
+// existen.
+function formaPagoCot(){
+  var e = document.getElementById('cot-forma-pago');
+  return (e && e.value) ? e.value : 'transferencia';
+}
+function toggleFormaPagoCot(){
+  var f = formaPagoCot();
+  var wrap = document.getElementById('cot-banco-wrap');
+  var nota = document.getElementById('cot-pago-nota');
+  var txt  = document.getElementById('cot-pago-nota-txt');
+  var esTransf = (f === 'transferencia');
+  if(wrap) wrap.style.display = esTransf ? '' : 'none';
+  if(nota) nota.style.display = esTransf ? 'none' : '';
+  if(txt)  txt.textContent = f==='tarjeta'
+    ? 'Pago con tarjeta: no se piden datos bancarios. Guarda el comprobante al recibir.'
+    : 'Pago en efectivo: no se piden datos bancarios. Entrega el ticket o factura al recibir.';
+  if(esTransf){
+    var av = document.getElementById('cot-clabe-aviso');
+    if(av) av.style.display = 'none';
+  }
+}
+function setFormaPagoCot(v){
+  var e = document.getElementById('cot-forma-pago');
+  if(e) e.value = v || 'transferencia';
+  toggleFormaPagoCot();
+}
+
 // ── DATOS BANCARIOS DEL PROVEEDOR ────────────────────────────────────
 // Se capturan al cargar la cotizacion y se guardan por proveedor. La
 // siguiente compra al mismo proveedor ya los trae.
@@ -1231,10 +1261,12 @@ async function abrirCotizar(reqId, reEditar) {
     document.getElementById('cot-proveedor').value = r&&r.proveedor ? r.proveedor : '';
     document.getElementById('cot-entrega').value   = r&&r.tiempo_entrega ? r.tiempo_entrega : '';
     document.getElementById('cot-notas').value     = r&&r.notas_cotizacion ? r.notas_cotizacion : '';
+    setFormaPagoCot(r && r.forma_pago);
   } else {
     document.getElementById('cot-proveedor').value='';
     document.getElementById('cot-entrega').value='';
     document.getElementById('cot-notas').value='';
+    setFormaPagoCot('transferencia');
   }
   // Load items
   var items = [];
@@ -1290,7 +1322,7 @@ async function seleccionarGanador(compId, reqId) {
     // Seleccionar la ganadora
     var comp = await db('PATCH','comparativas?id=eq.'+compId, { seleccionado: true });
     // Obtener el monto del ganador para guardarlo en la req
-    var rows = await db('GET','comparativas?id=eq.'+compId+'&select=precio_unitario,proveedor,tiempo_entrega,notas');
+    var rows = await db('GET','comparativas?id=eq.'+compId+'&select=precio_unitario,proveedor,tiempo_entrega,notas,forma_pago');
     var c = rows && rows[0];
     // Actualizar la req a cotizada con el proveedor ganador
     await db('PATCH','requisiciones?id=eq.'+reqId, {
@@ -1298,7 +1330,8 @@ async function seleccionarGanador(compId, reqId) {
       proveedor: c ? c.proveedor : null,
       monto_cotizado: c ? parseFloat(c.precio_unitario||0) : null,
       tiempo_entrega: c ? c.tiempo_entrega : null,
-      notas_cotizacion: c ? c.notas : null
+      notas_cotizacion: c ? c.notas : null,
+      forma_pago: (c && c.forma_pago) || 'transferencia'
     });
     showToast('✅ Proveedor seleccionado — requisición lista para autorizar');
     await loadData();
@@ -1362,11 +1395,14 @@ async function saveComparativa(reqId) {
   if(!proveedor) { showToast('Ingresa el proveedor',true); return; }
   if(!monto) { showToast('Ingresa al menos un precio',true); return; }
   var _cv = function(id){ var e=document.getElementById(id); return e? e.value.trim() : ''; };
+  var formaPagoComp = formaPagoCot();
   var banco = { titular:_cv('cot-titular'), banco:_cv('cot-banco'),
                 cuenta:_cv('cot-cuenta'), clabe:_cv('cot-clabe').replace(/\D/g,'') };
   // La CLABE son 18 digitos. Atajarlo aqui evita el rechazo del banco el dia
   // del pago, que es cuando ya nadie se acuerda de donde salio el dato.
-  if(!banco.titular || !banco.banco || !banco.clabe){
+  if(formaPagoComp !== 'transferencia'){
+    banco = { titular:'', banco:'', cuenta:'', clabe:'' };
+  } else if(!banco.titular || !banco.banco || !banco.clabe){
     var avf=document.getElementById('cot-clabe-aviso');
     if(avf){ avf.textContent='Captura titular, banco y CLABE del proveedor.'; avf.style.display=''; }
     var pf = !banco.titular ? 'cot-titular' : (!banco.banco ? 'cot-banco' : 'cot-clabe');
@@ -1392,6 +1428,7 @@ async function saveComparativa(reqId) {
       precio_unitario: monto,
       tiempo_entrega: document.getElementById('cot-entrega').value.trim()||null,
       notas: document.getElementById('cot-notas').value.trim()||null,
+      forma_pago: formaPagoComp,
       seleccionado: false
     });
     // Asegurar que el estado sea 'en comparativa'
@@ -1439,15 +1476,44 @@ async function saveCotizacion() {
   if(!proveedor){ showToast('Ingresa el proveedor',true); return; }
   if(!entrega){ showToast('Ingresa el tiempo de entrega',true); return; }
   if(!monto){ showToast('Ingresa al menos un precio',true); return; }
+  var formaPago = formaPagoCot();
+  var _cvc = function(id){ var e=document.getElementById(id); return e? e.value.trim() : ''; };
+  var bancoCot = { titular:_cvc('cot-titular'), banco:_cvc('cot-banco'),
+                   cuenta:_cvc('cot-cuenta'), clabe:_cvc('cot-clabe').replace(/\D/g,'') };
+  if(formaPago === 'transferencia'){
+    if(!bancoCot.titular || !bancoCot.banco || !bancoCot.clabe){
+      var avf1=document.getElementById('cot-clabe-aviso');
+      if(avf1){ avf1.textContent='Captura titular, banco y CLABE del proveedor.'; avf1.style.display=''; }
+      var pf1 = !bancoCot.titular ? 'cot-titular' : (!bancoCot.banco ? 'cot-banco' : 'cot-clabe');
+      var pe1 = document.getElementById(pf1); if(pe1) pe1.focus();
+      showToast('Faltan los datos de pago del proveedor', true);
+      return;
+    }
+    if(bancoCot.clabe.length!==18){
+      var av1=document.getElementById('cot-clabe-aviso');
+      if(av1){ av1.textContent='La CLABE debe tener 18 dígitos (lleva '+bancoCot.clabe.length+').'; av1.style.display=''; }
+      var ce1=document.getElementById('cot-clabe'); if(ce1) ce1.focus();
+      return;
+    }
+  } else {
+    bancoCot = { titular:'', banco:'', cuenta:'', clabe:'' };
+  }
+  var avc=document.getElementById('cot-clabe-aviso'); if(avc) avc.style.display='none';
   var btn = document.getElementById('cot-save-btn');
   btn.textContent='Guardando...'; btn.disabled=true;
   var sinIva  = parseFloat(document.getElementById('cot-siniva-hidden').value)||0;
   var ivaM    = parseFloat(document.getElementById('cot-iva-hidden').value)||0;
   var ivaPct  = parseFloat(document.getElementById('cot-ivapct-hidden').value)||0;
   try {
+    if(formaPago === 'transferencia') await guardarBancoProveedor(proveedor, bancoCot);
     await db('PATCH','requisiciones?id=eq.'+reqId,{
       estado:'cotizada',
       proveedor:document.getElementById('cot-proveedor').value.trim(),
+      forma_pago:formaPago,
+      pago_titular:bancoCot.titular||null,
+      pago_banco:bancoCot.banco||null,
+      pago_cuenta:bancoCot.cuenta||null,
+      pago_clabe:bancoCot.clabe||null,
       monto_cotizado:sinIva,          // subtotal sin IVA (igual que confirmarAutorizacion en metalek)
       iva_pct:ivaPct,
       iva_cotizado:ivaM,
@@ -1482,6 +1548,7 @@ async function saveCotizacion() {
       +'🏪 Proveedor: '+document.getElementById('cot-proveedor').value+'\n'
       +'💵 Monto: $'+monto.toLocaleString()+'\n'
       +'⏱ Entrega: '+document.getElementById('cot-entrega').value+'\n'
+      +'💳 Forma de pago: '+(formaPago==='tarjeta'?'Tarjeta':formaPago==='efectivo'?'Efectivo':'Transferencia')+'\n'
       +'*Pendiente de autorización*';
     showToast('✅ Cotización guardada');
     closeSheet('cotizar');
