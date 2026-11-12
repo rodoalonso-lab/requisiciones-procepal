@@ -1035,7 +1035,9 @@ async function enviarPagoWA(reqId){
   // los datos de pago: primero los de la requisicion, si no los del catalogo
   var b = { titular:r.pago_titular, banco:r.pago_banco, clabe:r.pago_clabe,
             cuenta:r.pago_cuenta, referencia:r.pago_referencia };
-  if(!b.clabe && r.proveedor){
+  var fp = (r.forma_pago || 'transferencia');
+  if(fp !== 'transferencia') b = { titular:null, banco:null, clabe:null, cuenta:null, referencia:null };
+  if(fp === 'transferencia' && !b.clabe && r.proveedor){
     try {
       var rows = await db('GET','proveedores_bancos?proveedor=eq.'+encodeURIComponent(r.proveedor)+'&limit=1');
       if(rows && rows[0]) b = { titular:rows[0].titular, banco:rows[0].banco,
@@ -1057,14 +1059,16 @@ async function enviarPagoWA(reqId){
     '💵 Subtotal: '+money(r.monto_cotizado)+'\n'+
     'IVA: '+money(r.iva_cotizado)+'\n'+
     '*TOTAL: '+money(r.monto_total_con_iva||r.monto_cotizado)+'*\n'+
-    (b.titular||b.banco||b.clabe
-      ? '\n🏦 *Datos de pago*\n'+
-        (b.titular?'Titular: '+b.titular+'\n':'')+
-        (b.banco?'Banco: '+b.banco+'\n':'')+
-        (b.clabe?'CLABE: '+b.clabe+'\n':'')+
-        (b.cuenta?'Cuenta: '+b.cuenta+'\n':'')+
-        (b.referencia?'Referencia: '+b.referencia+'\n':'')
-      : '\n⚠️ Sin datos bancarios capturados\n');
+    (fp === 'tarjeta' ? '\n💳 *Pago con TARJETA*\nNo requiere transferencia.\n'
+     : fp === 'efectivo' ? '\n💵 *Pago en EFECTIVO*\nNo requiere transferencia.\n'
+     : (b.titular||b.banco||b.clabe
+        ? '\n🏦 *Datos de pago* (transferencia)\n'+
+          (b.titular?'Titular: '+b.titular+'\n':'')+
+          (b.banco?'Banco: '+b.banco+'\n':'')+
+          (b.clabe?'CLABE: '+b.clabe+'\n':'')+
+          (b.cuenta?'Cuenta: '+b.cuenta+'\n':'')+
+          (b.referencia?'Referencia: '+b.referencia+'\n':'')
+        : '\n⚠️ Sin datos bancarios capturados\n'));
 
   window.open('https://wa.me/?text='+encodeURIComponent(msg), '_blank');
 }
@@ -1346,6 +1350,7 @@ async function abrirAgregarComparativa(reqId) {
   document.getElementById('cot-req-id').value = reqId;
   document.getElementById('cot-total-display').textContent = '$0';
   document.querySelector('#sheet-cotizar .sheet-title').textContent = 'Agregar cotización de proveedor';
+  setFormaPagoCot('transferencia');
   document.getElementById('cot-proveedor').value = '';
   document.getElementById('cot-entrega').value = '';
   document.getElementById('cot-notas').value = '';
