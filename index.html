@@ -338,6 +338,11 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
         <input class="form-input" id="cot-cuenta" placeholder="Cuenta" style="flex:1">
       </div>
       <input class="form-input" id="cot-clabe" placeholder="CLABE (18 dígitos)" inputmode="numeric" style="margin-top:8px">
+      <input class="form-input" id="cot-referencia"
+             placeholder="Referencia de pago (Fonacot, Infonavit, convenio…)"
+             style="margin-top:8px">
+      <div class="item-sub" style="margin-top:4px">Sin límite de longitud. Es la referencia
+        que el banco pide para identificar el pago.</div>
       <div id="cot-clabe-aviso" style="font-size:11px;color:#EF4444;margin-top:5px;display:none"></div>
       <div style="font-size:11px;color:var(--dim);margin-top:5px">
         Obligatorios. Se guardan para este proveedor y se reusan en las siguientes compras.
@@ -1162,6 +1167,7 @@ async function autollenarBanco(){
     if(b){
       set('cot-titular', b.titular); set('cot-banco', b.banco);
       set('cot-cuenta', b.cuenta);   set('cot-clabe', b.clabe);
+      set('cot-referencia', b.referencia);
       if(org) org.textContent = 'ya los teníamos de este proveedor';
     } else if(org){
       org.textContent = 'proveedor nuevo: se van a guardar';
@@ -1311,11 +1317,15 @@ async function abrirCotizar(reqId, reEditar) {
     document.getElementById('cot-entrega').value   = r&&r.tiempo_entrega ? r.tiempo_entrega : '';
     document.getElementById('cot-notas').value     = r&&r.notas_cotizacion ? r.notas_cotizacion : '';
     setFormaPagoCot(r && r.forma_pago);
+    var _ref=document.getElementById('cot-referencia');
+    if(_ref) _ref.value = (r && r.pago_referencia) ? r.pago_referencia : '';
   } else {
     document.getElementById('cot-proveedor').value='';
     document.getElementById('cot-entrega').value='';
     document.getElementById('cot-notas').value='';
     setFormaPagoCot('transferencia');
+    var _ref2=document.getElementById('cot-referencia');
+    if(_ref2) _ref2.value='';
   }
   // Load items
   var items = [];
@@ -1463,7 +1473,8 @@ async function saveComparativa(reqId) {
   var _cv = function(id){ var e=document.getElementById(id); return e? e.value.trim() : ''; };
   var formaPagoComp = formaPagoCot();
   var banco = { titular:_cv('cot-titular'), banco:_cv('cot-banco'),
-                cuenta:_cv('cot-cuenta'), clabe:_cv('cot-clabe').replace(/\D/g,'') };
+                cuenta:_cv('cot-cuenta'), clabe:_cv('cot-clabe').replace(/\D/g,''),
+                referencia:_cv('cot-referencia') };
   // La CLABE son 18 digitos. Atajarlo aqui evita el rechazo del banco el dia
   // del pago, que es cuando ya nadie se acuerda de donde salio el dato.
   if(formaPagoComp !== 'transferencia'){
@@ -1499,6 +1510,7 @@ async function saveComparativa(reqId) {
       pago_banco:   banco.banco   || null,
       pago_cuenta:  banco.cuenta  || null,
       pago_clabe:   banco.clabe   || null,
+      pago_referencia: banco.referencia || null,
       seleccionado: false
     });
     // Asegurar que el estado sea 'en comparativa'
@@ -1549,7 +1561,8 @@ async function saveCotizacion() {
   var formaPago = formaPagoCot();
   var _cvc = function(id){ var e=document.getElementById(id); return e? e.value.trim() : ''; };
   var bancoCot = { titular:_cvc('cot-titular'), banco:_cvc('cot-banco'),
-                   cuenta:_cvc('cot-cuenta'), clabe:_cvc('cot-clabe').replace(/\D/g,'') };
+                   cuenta:_cvc('cot-cuenta'), clabe:_cvc('cot-clabe').replace(/\D/g,''),
+                   referencia:_cvc('cot-referencia') };
   if(formaPago === 'transferencia'){
     if(!bancoCot.titular || !bancoCot.banco || !bancoCot.clabe){
       var avf1=document.getElementById('cot-clabe-aviso');
@@ -1584,6 +1597,7 @@ async function saveCotizacion() {
       pago_banco:bancoCot.banco||null,
       pago_cuenta:bancoCot.cuenta||null,
       pago_clabe:bancoCot.clabe||null,
+      pago_referencia:bancoCot.referencia||null,
       monto_cotizado:sinIva,          // subtotal sin IVA (igual que confirmarAutorizacion en metalek)
       iva_pct:ivaPct,
       iva_cotizado:ivaM,
