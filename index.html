@@ -1168,7 +1168,9 @@ async function autollenarBanco(){
       set('cot-titular', b.titular); set('cot-banco', b.banco);
       set('cot-cuenta', b.cuenta);   set('cot-clabe', b.clabe);
       set('cot-referencia', b.referencia);
-      if(org) org.textContent = 'ya los teníamos de este proveedor';
+      if(org) org.textContent = b.referencia
+        ? 'ya los teníamos · revisa la referencia'
+        : 'ya los teníamos de este proveedor';
     } else if(org){
       org.textContent = 'proveedor nuevo: se van a guardar';
     }
@@ -1177,12 +1179,13 @@ async function autollenarBanco(){
 
 async function guardarBancoProveedor(proveedor, b){
   if(!proveedor) return;
-  if(!b.titular && !b.banco && !b.clabe && !b.cuenta) return;
+  if(!b.titular && !b.banco && !b.clabe && !b.cuenta && !b.referencia) return;
   // db() no acepta cabeceras (su 4o argumento son reintentos), asi que no
   // se puede usar el upsert de PostgREST: se consulta y luego PATCH o POST.
   try {
     var datos = { titular:b.titular||null, banco:b.banco||null,
                   cuenta:b.cuenta||null, clabe:b.clabe||null,
+                  referencia:b.referencia||null,
                   updated_at:new Date().toISOString() };
     var pv = encodeURIComponent(proveedor);
     var ex = await db('GET','proveedores_bancos?proveedor=eq.'+pv+'&select=id&limit=1');
