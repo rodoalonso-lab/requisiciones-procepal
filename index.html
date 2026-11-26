@@ -341,8 +341,8 @@ body.tema-claro .theme-icon-sol{color:var(--accent)}
       <input class="form-input" id="cot-referencia"
              placeholder="Referencia de pago (Fonacot, Infonavit, convenio…)"
              style="margin-top:8px">
-      <div class="item-sub" style="margin-top:4px">Sin límite de longitud. Es la referencia
-        que el banco pide para identificar el pago.</div>
+      <div class="item-sub" style="margin-top:4px">Sin límite de longitud. Se captura en cada
+        requisición porque cambia de un pago a otro: no se reusa la anterior.</div>
       <div id="cot-clabe-aviso" style="font-size:11px;color:#EF4444;margin-top:5px;display:none"></div>
       <div style="font-size:11px;color:var(--dim);margin-top:5px">
         Obligatorios. Se guardan para este proveedor y se reusan en las siguientes compras.
@@ -1167,10 +1167,7 @@ async function autollenarBanco(){
     if(b){
       set('cot-titular', b.titular); set('cot-banco', b.banco);
       set('cot-cuenta', b.cuenta);   set('cot-clabe', b.clabe);
-      set('cot-referencia', b.referencia);
-      if(org) org.textContent = b.referencia
-        ? 'ya los teníamos · revisa la referencia'
-        : 'ya los teníamos de este proveedor';
+      if(org) org.textContent = 'ya los teníamos de este proveedor';
     } else if(org){
       org.textContent = 'proveedor nuevo: se van a guardar';
     }
@@ -1179,13 +1176,14 @@ async function autollenarBanco(){
 
 async function guardarBancoProveedor(proveedor, b){
   if(!proveedor) return;
-  if(!b.titular && !b.banco && !b.clabe && !b.cuenta && !b.referencia) return;
+  if(!b.titular && !b.banco && !b.clabe && !b.cuenta) return;
   // db() no acepta cabeceras (su 4o argumento son reintentos), asi que no
   // se puede usar el upsert de PostgREST: se consulta y luego PATCH o POST.
   try {
+    // La referencia NO se guarda en el catálogo: cambia en cada pago y
+    // reusarla mandaría la del pago anterior.
     var datos = { titular:b.titular||null, banco:b.banco||null,
                   cuenta:b.cuenta||null, clabe:b.clabe||null,
-                  referencia:b.referencia||null,
                   updated_at:new Date().toISOString() };
     var pv = encodeURIComponent(proveedor);
     var ex = await db('GET','proveedores_bancos?proveedor=eq.'+pv+'&select=id&limit=1');
